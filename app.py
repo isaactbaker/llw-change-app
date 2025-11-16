@@ -8,9 +8,9 @@ import json
 
 # Import our setup
 # --- UPDATED IMPORTS ---
-from database import engine, change_portfolio_table, friction_log_table
+from database import engine, change_portfolio_table, friction_log_table, champion_network_table
 from logic import TOOLKITS, calculate_triage
-# --- NEW AI IMPORT ---
+# --- UPDATED AI IMPORT ---
 import ai_logic 
 # --- END IMPORTS ---
 
@@ -577,23 +577,144 @@ def my_workbench_page():
 
 
 
+
+# --- 5. The "Champion Network" Page (NEW for Co-Pilot) ---
+def champion_network_page():
+    st.title("👥 Change Champion Network")
+    st.markdown("Manage your network of champions and use the AI Co-pilot to scale your engagement.")
+
+    # --- Load all project names for dropdowns ---
+    try:
+        df_projects = pd.read_sql_table("change_portfolio", engine)
+        if df_projects.empty:
+            st.warning("No projects found. Please submit a project first.")
+            project_names = []
+            project_data_map = {}
+        else:
+            project_names = df_projects['project_name'].tolist()
+            # Create a dictionary to look up project data by name
+            project_data_map = df_projects.set_index('project_name').to_dict('index')
+            
+    except Exception as e:
+        st.error(f"Failed to load project database. Error: {e}")
+        return
+
+    # --- Create Tabs for this page ---
+    tab_manage, tab_copilot = st.tabs(["Manage Network", "AI Co-pilot"])
+
+    # --- Tab 1: Manage Champion Network ---
+    with tab_manage:
+        st.subheader("Add a New Champion")
+        
+        # Consistent list of departments
+        dept_options = ["Frontline Clinical", "AOD Services", "Mental Health", "Corporate (HR/Finance)", "IT", "Leadership", "All Staff"]
+
+        with st.form("add_champion_form"):
+            name = st.text_input("Champion Name")
+            email = st.text_input("Champion Email")
+            dept = st.selectbox("Department", options=dept_options)
+            project = st.selectbox("Assigned Project", options=project_names)
+            
+            submitted = st.form_submit_button("Add Champion")
+            
+            if submitted:
+                if not name or not project:
+                    st.error("Please provide at least a name and assigned project.")
+                else:
+                    new_champion = {
+                        "champion_name": name,
+                        "champion_email": email,
+                        "department": dept,
+                        "project_name": project
+                    }
+                    with engine.connect() as conn:
+                        conn.execute(insert(champion_network_table).values(new_champion))
+                        conn.commit()
+                    st.success(f"Added {name} to the network for {project}!")
+
+        st.markdown("---")
+        
+        # Display the full network
+        st.subheader("Current Champion Network")
+        try:
+            df_champions = pd.read_sql_table("champion_network", engine)
+            if df_champions.empty:
+                st.info("No champions have been added yet.")
+            else:
+                st.dataframe(df_champions, width='stretch')
+        except Exception as e:
+            st.error(f"Failed to load champion network. Error: {e}")
+
+    # --- Tab 2: AI Co-pilot ---
+    with tab_copilot:
+        st.subheader("Generate Champion Communications")
+        st.markdown("Select a project to generate context-aware communications for your champions.")
+
+        if not project_names:
+            st.warning("No projects available to generate comms.")
+            return
+
+        selected_project = st.selectbox("Select Project for Comms", options=project_names)
+        
+        if selected_project:
+            # Get the context for this project
+            project_context = project_data_map.get(selected_project)
+            
+            if not project_context:
+                st.error("Could not load project context.")
+                return
+
+            st.markdown(f"**Project Context:** Tier is `{project_context['change_tier']}` and main barrier is `{project_context['behavioural_barrier']}`.")
+
+            col1, col2 = st.columns(2)
+            
+            # Button 1: Kick-off Email
+            if col1.button("Generate Kick-off Email"):
+                with st.spinner("🤖 Co-pilot is drafting the email..."):
+                    email_draft = ai_logic.run_champion_kickoff_email(selected_project)
+                    st.session_state['ai_output'] = email_draft # Save to session state
+
+            # Button 2: Talking Points
+            if col2.button("Generate Talking Points Brief"):
+                with st.spinner("🤖 Co-pilot is creating the brief..."):
+                    brief_draft = ai_logic.run_champion_talking_points(
+                        project_name=selected_project,
+                        change_tier=project_context['change_tier'],
+                        behavioural_barrier=project_context['behavioural_barrier']
+                    )
+                    st.session_state['ai_output'] = brief_draft # Save to session state
+
+            # Display the result
+            if 'ai_output' in st.session_state:
+                st.markdown("---")
+                st.subheader("AI Co-pilot Draft")
+                st.text_area("You can edit and copy the text below:", 
+                             value=st.session_state['ai_output'], 
+                             height=400)
+
+
+
+
 # --- Main App Router (Sidebar) ---
 st.sidebar.title("Navigation")
 # --- UPDATED LIST ---
 page = st.sidebar.radio("Go to:", [
-    "My Workbench", # <--- NEW
+    "My Workbench",
     "PMO Dashboard", 
     "Project Details",
+    "Champion Network", # <--- NEW
     "Project Intake Form"
 ])
 
 if page == "Project Intake Form":
     intake_form_page()
-# --- UPDATED ROUTING ---
 elif page == "PMO Dashboard":
     pmo_dashboard_page()
 elif page == "Project Details":
     project_detail_page()
 elif page == "My Workbench":
     my_workbench_page()
-# --- END UPDATED ROUTING ---
+# --- NEW PAGE ROUTE ---
+elif page == "Champion Network":
+    champion_network_page()
+# --- END NEW PAGE ---

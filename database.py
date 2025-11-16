@@ -2,7 +2,7 @@
 import sqlalchemy
 
 # Define the database connection
-DATABASE_URL = "sqlite:///./change_portfolio_v6.db"
+DATABASE_URL = "sqlite:///./change_portfolio_v7.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
@@ -43,6 +43,22 @@ friction_log_table = sqlalchemy.Table(
     sqlalchemy.Column("logged_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
 )
 # --- END NEW TABLE ---
+
+
+# --- NEW TABLE FOR CHAMPION NETWORK (IDEA #2) ---
+champion_network_table = sqlalchemy.Table(
+    "champion_network",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("champion_name", sqlalchemy.String),
+    sqlalchemy.Column("champion_email", sqlalchemy.String),
+    sqlalchemy.Column("department", sqlalchemy.String),
+    # This links the champion to a project
+    sqlalchemy.Column("project_name", sqlalchemy.String), 
+    sqlalchemy.Column("status", sqlalchemy.String, default="Active")
+)
+# --- END NEW TABLE ---
+
 
 # Create the table (and new columns if they don't exist)
 metadata.create_all(engine)

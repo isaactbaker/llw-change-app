@@ -48,6 +48,37 @@ Here are the survey comments:
 {survey_comments}
 """
 
+# --- NEW PROMPTS FOR CHAMPION CO-PILOT ---
+
+PROMPT_CHAMPION_KICKOFF = """
+You are an expert change manager drafting a communication.
+Your task is to draft an inspiring, concise, 200-word kick-off email to our new Change Champions for the '{project_name}' project.
+
+The tone must be:
+- Appreciative (thank them for stepping up).
+- Clear (state the goal of the network).
+- Action-oriented (what is the immediate next step, e.g., 'our first meeting').
+
+Do not use overly complex jargon. Make it human and exciting.
+"""
+
+PROMPT_CHAMPION_TALKING_POINTS = """
+You are an expert change manager creating a brief for your Change Champions.
+Your task is to generate a 1-page "Talking Points" brief for the champions of the '{project_name}' project.
+
+The project's Change Tier is: {change_tier}
+The main identified human risk is: {behavioural_barrier}
+
+Based on this context, your brief MUST include:
+1.  **Project "Elevator Pitch":** A 1-2 sentence, simple way to describe the project.
+2.  **3 Key "What's In It For Me?" (WIIFM) Points:** Why should staff be on board?
+3.  **3 "Likely Questions & Simple Answers":** Based on the '{behavioural_barrier}' risk, anticipate 3 tough questions or points of resistance and provide a simple, honest answer for each.
+
+Format the output in clear, professional Markdown.
+"""
+# --- END NEW PROMPTS ---
+
+
 
 # 3. API-Calling Functions
 
@@ -99,3 +130,32 @@ def run_survey_analysis(df_survey: pd.DataFrame, column_name: str) -> str:
     payload = {"survey_comments": comments_string}
     
     return call_ai_analysis(PROMPT_SURVEY_ANALYSIS, payload)
+
+
+
+# --- NEW FUNCTIONS FOR CHAMPION CO-PILOT ---
+
+def run_champion_kickoff_email(project_name: str) -> str:
+    """Generates a champion kick-off email for a project."""
+    client = get_api_client()
+    if client is None:
+        return "AI analysis could not be performed. API key is missing."
+
+    payload = {"project_name": project_name}
+    return call_ai_analysis(PROMPT_CHAMPION_KICKOFF, payload)
+
+
+def run_champion_talking_points(project_name: str, change_tier: str, behavioural_barrier: str) -> str:
+    """Generates champion talking points based on project context."""
+    client = get_api_client()
+    if client is None:
+        return "AI analysis could not be performed. API key is missing."
+
+    payload = {
+        "project_name": project_name,
+        "change_tier": change_tier,
+        "behavioural_barrier": behavioural_barrier
+    }
+    return call_ai_analysis(PROMPT_CHAMPION_TALKING_POINTS, payload)
+
+# --- END NEW FUNCTIONS ---
