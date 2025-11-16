@@ -3,3 +3,4 @@ sqlalchemy
 pandas
 plotly-express
 numpy
+openai

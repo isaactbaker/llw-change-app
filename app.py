@@ -7,9 +7,12 @@ import numpy as np
 import json
 
 # Import our setup
-from database import engine, change_portfolio_table
+# --- UPDATED IMPORTS ---
+from database import engine, change_portfolio_table, friction_log_table
 from logic import TOOLKITS, calculate_triage
-
+# --- NEW AI IMPORT ---
+import ai_logic 
+# --- END IMPORTS ---
 
 # --- NEW CONSTANT FOR IDEA #3 ---
 # This represents the total "effort points" you (as the Change Manager)
@@ -438,80 +441,137 @@ def project_detail_page():
         # --- END REBUILT SECTION ---
 
 
-
-# --- 4. The "My Workbench" Page (NEW for Idea #5) ---
+# --- 4. The "My Workbench" Page (REBUILT for Idea #5 + AI Analyst) ---
 def my_workbench_page():
     st.title("👩‍💼 My Change Workbench")
-    st.markdown("Your personal cockpit for all *active* projects and tasks.")
+    st.markdown("Your personal cockpit for all active projects, tasks, and AI analysis.")
 
-    # --- Load all data from the database ---
+    # --- Load all portfolio data ---
     try:
-        df_full = pd.read_sql_table("change_portfolio", engine)
-        if df_full.empty:
+        df_projects = pd.read_sql_table("change_portfolio", engine)
+        if df_projects.empty:
             st.error("No project data found. Please submit a project on the Intake Form.")
             return
+        
+        # Get a list of "Active" project names for dropdowns
+        active_project_names = df_projects[df_projects['status'] == 'Active']['project_name'].tolist()
+
     except Exception as e:
-        st.error(f"Failed to load database. Error: {e}")
+        st.error(f"Failed to load project database. Error: {e}")
         return
 
-    # --- 1. Filter for "Active" Projects ---
-    df_active = df_full[df_full['status'] == 'Active'].copy()
+    # --- Create Tabs for the Workbench ---
+    tab_tasks, tab_friction, tab_survey = st.tabs([
+        "My Priority Tasks", 
+        "🔥 Friction & Sludge Log", 
+        "📊 Survey AI Analyst"
+    ])
 
-    st.markdown("---")
-    st.subheader("My Active Projects")
-    
-    if df_active.empty:
-        st.info("You have no 'Active' projects in the portfolio.")
-    else:
-        # Display a streamlined view of active projects
-        st.dataframe(df_active[[
-            'project_name', 
-            'change_tier', 
-            'effort_score', 
-            'exec_sponsor', 
-            'go_live_date'
-        ]], use_container_width=True)
-
-    # --- 2. Aggregate All "Priority" Tasks ---
-    st.markdown("---")
-    st.subheader("My Priority Tasks (To Do / In Progress)")
-    
-    all_tasks = []
-
-    # Iterate through each *active* project
-    for index, project in df_active.iterrows():
-        project_name = project['project_name']
-        playbook_json = project['playbook_data']
+    # --- Tab 1: My Priority Tasks (Your existing Idea #5) ---
+    with tab_tasks:
+        st.subheader("My Priority Tasks (To Do / In Progress)")
         
-        if playbook_json:
+        df_active = df_projects[df_projects['status'] == 'Active'].copy()
+        
+        if df_active.empty:
+            st.info("You have no 'Active' projects. No tasks to show.")
+        else:
+            all_tasks = []
+            for index, project in df_active.iterrows():
+                project_name = project['project_name']
+                playbook_json = project['playbook_data']
+                if playbook_json:
+                    try:
+                        playbook_list = json.loads(playbook_json)
+                        for task in playbook_list:
+                            if task['Status'] != 'Done':
+                                all_tasks.append({
+                                    "Project": project_name,
+                                    "Category": task['Category'],
+                                    "Task": task['Task'],
+                                    "Status": task['Status']
+                                })
+                    except Exception as e:
+                        st.warning(f"Could not parse playbook for {project_name}.")
+            
+            if not all_tasks:
+                st.success("You have no outstanding tasks on active projects. All done! 🎉")
+            else:
+                tasks_df = pd.DataFrame(all_tasks)
+                st.dataframe(tasks_df, use_container_width=True)
+                st.markdown(f"**You have {len(tasks_df)} total priority tasks.**")
+                st.info("To edit a task, go to the 'Project Details' page.")
+
+    # --- Tab 2: Friction & Sludge Log ---
+    with tab_friction:
+        st.subheader("Log & Analyze Change Friction")
+        
+        # 1. The Form to log new friction
+        with st.form("friction_form"):
+            st.markdown("Heard a complaint? Saw a broken link? Log it here.")
+            # Select from active projects, or allow "General"
+            project = st.selectbox("Related Project", options=["General"] + active_project_names)
+            note = st.text_area("Friction Note", placeholder="e.g., 'A nurse told me the new login button is hidden and takes 6 clicks.'")
+            submitted = st.form_submit_button("Log Friction Note")
+            
+            if submitted:
+                if not note:
+                    st.error("Please enter a friction note.")
+                else:
+                    # Write to the new friction_log_table
+                    new_log = {"project_name": project, "friction_note": note}
+                    with engine.connect() as conn:
+                        conn.execute(insert(friction_log_table).values(new_log))
+                        conn.commit()
+                    st.success("Friction logged!")
+        
+        st.markdown("---")
+        
+        # 2. Display and Analyze existing logs
+        try:
+            df_friction = pd.read_sql_table("friction_log", engine)
+            st.subheader(f"Current Friction Log ({len(df_friction)} entries)")
+            st.dataframe(df_friction[['project_name', 'friction_note', 'status', 'logged_date']], use_container_width=True)
+
+            if not df_friction.empty and st.button("Run AI Friction Analysis (All Entries)"):
+                with st.spinner("🤖 AI Analyst is reading all friction notes..."):
+                    analysis_report = ai_logic.run_friction_analysis(df_friction)
+                    st.markdown(analysis_report)
+
+        except Exception as e:
+            st.error(f"Failed to load friction log. Error: {e}")
+
+    # --- Tab 3: Survey AI Analyst ---
+    with tab_survey:
+        st.subheader("Analyze Survey Comments")
+        st.markdown("Upload a CSV/Excel file with open-ended survey comments.")
+        
+        uploaded_file = st.file_uploader("Upload Survey Data", type=["csv", "xlsx"])
+        
+        if uploaded_file:
             try:
-                # Load the list of tasks from the JSON string
-                playbook_list = json.loads(playbook_json)
+                if uploaded_file.name.endswith('.csv'):
+                    df_survey = pd.read_csv(uploaded_file)
+                else:
+                    df_survey = pd.read_excel(uploaded_file)
                 
-                # Find all tasks that are NOT 'Done'
-                for task in playbook_list:
-                    if task['Status'] != 'Done':
-                        # Add them to our master list, tagged with the project name
-                        all_tasks.append({
-                            "Project": project_name,
-                            "Category": task['Category'],
-                            "Task": task['Task'],
-                            "Status": task['Status']
-                        })
+                st.dataframe(df_survey.head(), help="Showing first 5 rows of your data.")
+                
+                # Get column to analyze
+                col_name = st.text_input("Which column has the comments you want to analyze?", 
+                                         help="e.g., 'Q5 Comments', 'Additional Feedback'")
+                
+                if st.button(f"Run AI Analysis on column: '{col_name}'"):
+                    if not col_name:
+                        st.error("Please enter a column name.")
+                    else:
+                        with st.spinner("🤖 AI Analyst is reading thousands of comments..."):
+                            analysis_report = ai_logic.run_survey_analysis(df_survey, col_name)
+                            st.markdown(analysis_report)
+            
             except Exception as e:
-                # This catches errors if the JSON is bad
-                st.warning(f"Could not parse playbook for {project_name}. Error: {e}")
+                st.error(f"Failed to process file: {e}")
 
-    # --- Display the master task list ---
-    if not all_tasks:
-        st.success("You have no outstanding tasks on active projects. All done! 🎉")
-    else:
-        tasks_df = pd.DataFrame(all_tasks)
-        st.dataframe(tasks_df, use_container_width=True)
-        st.markdown(f"**You have {len(tasks_df)} total priority tasks across {len(df_active)} active projects.**")
-        st.info("To edit a task, go to the 'Project Details' page and select the project.")
-
-# --- END NEW FUNCTION ---
 
 
 # --- Main App Router (Sidebar) ---

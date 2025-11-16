@@ -2,7 +2,7 @@
 import sqlalchemy
 
 # Define the database connection
-DATABASE_URL = "sqlite:///./change_portfolio_v4.db"
+DATABASE_URL = "sqlite:///./change_portfolio_v5.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
@@ -30,6 +30,19 @@ change_portfolio_table = sqlalchemy.Table(
     
     sqlalchemy.Column("submission_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
 )
+
+# --- NEW TABLE FOR AI ANALYST (IDEA #1) ---
+friction_log_table = sqlalchemy.Table(
+    "friction_log",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    # This links the friction to a project
+    sqlalchemy.Column("project_name", sqlalchemy.String), 
+    sqlalchemy.Column("friction_note", sqlalchemy.String),
+    sqlalchemy.Column("status", sqlalchemy.String, default="Open"),
+    sqlalchemy.Column("logged_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
+)
+# --- END NEW TABLE ---
 
 # Create the table (and new columns if they don't exist)
 metadata.create_all(engine)
