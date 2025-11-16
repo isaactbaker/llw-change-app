@@ -262,7 +262,7 @@ def pmo_dashboard_page():
                                         title="Projects per Department",
                                         labels={'x': 'Department', 'y': 'Number of Active Projects'})
                 fig_saturation.update_traces(marker_color='red')
-                st.plotly_chart(fig_saturation, use_container_width=True)
+                st.plotly_chart(fig_saturation, use_container_width='stretch')
             else:
                 st.info("No departments listed for the projects in this filter.")
         except Exception as e:
@@ -277,11 +277,11 @@ def pmo_dashboard_page():
     # Chart 2: Projects by Tier
     fig_tier = px.pie(df, names='change_tier', title='Projects by Tier (Filtered)',
                       color_discrete_map={'Light Support':'green', 'Medium Support':'orange', 'Full Support':'red'})
-    col1.plotly_chart(fig_tier, use_container_width=True)
+    col1.plotly_chart(fig_tier, use_container_width='stretch')
     
     # Chart 3: Projects by Type
     fig_type = px.bar(df, x='change_type', title='Projects by Type (Filtered)', color='change_type')
-    col2.plotly_chart(fig_type, use_container_width=True)
+    col2.plotly_chart(fig_type, use_container_width='stretch')
     
     st.markdown("---")
 
@@ -292,7 +292,7 @@ def pmo_dashboard_page():
         fig_timeline = px.timeline(df, x_start="go_live_date", x_end=df["go_live_date"] + pd.Timedelta(days=1), # Show as a point
                                    y="project_name", color="change_tier", title="Project Go-Live Dates")
         fig_timeline.update_yaxes(autorange="reversed") # Show newest at top
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, use_container_width='stretch')
     except Exception as e:
         st.error(f"Error plotting timeline. Check 'go_live_date' data. Error: {e}")
     
@@ -498,7 +498,7 @@ def my_workbench_page():
                 st.success("You have no outstanding tasks on active projects. All done! 🎉")
             else:
                 tasks_df = pd.DataFrame(all_tasks)
-                st.dataframe(tasks_df, use_container_width=True)
+                st.dataframe(tasks_df, use_container_width='stretch')
                 st.markdown(f"**You have {len(tasks_df)} total priority tasks.**")
                 st.info("To edit a task, go to the 'Project Details' page.")
 
@@ -531,7 +531,7 @@ def my_workbench_page():
         try:
             df_friction = pd.read_sql_table("friction_log", engine)
             st.subheader(f"Current Friction Log ({len(df_friction)} entries)")
-            st.dataframe(df_friction[['project_name', 'friction_note', 'status', 'logged_date']], use_container_width=True)
+            st.dataframe(df_friction[['project_name', 'friction_note', 'status', 'logged_date']], use_container_width='stretch')
 
             if not df_friction.empty and st.button("Run AI Friction Analysis (All Entries)"):
                 with st.spinner("🤖 AI Analyst is reading all friction notes..."):
@@ -555,8 +555,11 @@ def my_workbench_page():
                 else:
                     df_survey = pd.read_excel(uploaded_file)
                 
-                st.dataframe(df_survey.head(), help="Showing first 5 rows of your data.")
-                
+
+                st.dataframe(df_survey.head())
+                # You can add a caption *outside* the dataframe like this:
+                st.caption("Showing first 5 rows of your data.")
+                                
                 # Get column to analyze
                 col_name = st.text_input("Which column has the comments you want to analyze?", 
                                          help="e.g., 'Q5 Comments', 'Additional Feedback'")
