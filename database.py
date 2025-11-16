@@ -45,7 +45,7 @@ friction_log_table = sqlalchemy.Table(
 # --- END NEW TABLE ---
 
 
-# --- NEW TABLE FOR CHAMPION NETWORK (IDEA #2) ---
+# --- ADD THIS NEW TABLE ---
 champion_network_table = sqlalchemy.Table(
     "champion_network",
     metadata,
