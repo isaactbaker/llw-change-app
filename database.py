@@ -2,7 +2,7 @@
 import sqlalchemy
 
 # Define the database connection
-DATABASE_URL = "sqlite:///./change_portfolio_v3.db"
+DATABASE_URL = "sqlite:///./change_portfolio_v4.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 

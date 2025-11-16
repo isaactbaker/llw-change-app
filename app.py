@@ -439,7 +439,6 @@ def project_detail_page():
 
 
 
-
 # --- 4. The "My Workbench" Page (NEW for Idea #5) ---
 def my_workbench_page():
     st.title("👩‍💼 My Change Workbench")
@@ -512,7 +511,7 @@ def my_workbench_page():
         st.markdown(f"**You have {len(tasks_df)} total priority tasks across {len(df_active)} active projects.**")
         st.info("To edit a task, go to the 'Project Details' page and select the project.")
 
-
+# --- END NEW FUNCTION ---
 
 
 # --- Main App Router (Sidebar) ---
@@ -522,16 +521,16 @@ page = st.sidebar.radio("Go to:", [
     "My Workbench", # <--- NEW
     "PMO Dashboard", 
     "Project Details",
-    "Project Intake Form" 
+    "Project Intake Form"
 ])
 
 if page == "Project Intake Form":
     intake_form_page()
+# --- UPDATED ROUTING ---
 elif page == "PMO Dashboard":
     pmo_dashboard_page()
 elif page == "Project Details":
     project_detail_page()
-# --- NEW PAGE ROUTE ---
 elif page == "My Workbench":
     my_workbench_page()
-# --- END NEW PAGE ---
+# --- END UPDATED ROUTING ---
