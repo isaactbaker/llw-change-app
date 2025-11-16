@@ -2,12 +2,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from sqlalchemy.sql import select, insert
-import numpy as np # Streamlit's new dependency for .explode() may need this
+from sqlalchemy.sql import select, insert, update
+import numpy as np
+import json
 
 # Import our setup
 from database import engine, change_portfolio_table
 from logic import TOOLKITS, calculate_triage
+
+
+# --- NEW CONSTANT FOR IDEA #3 ---
+# This represents the total "effort points" you (as the Change Manager)
+# can handle at any one time. This is the 100% mark for the gauge.
+TOTAL_CHANGE_CAPACITY = 500 # (e.g., 5 'Full Support' projects)
+# --- END NEW CONSTANT ---
+
 
 # --- App Configuration ---
 st.set_page_config(
@@ -85,7 +94,10 @@ def intake_form_page():
                 "scale": scale, # KEPT for scoring
                 "impact_depth": impact_depth,
                 "change_history": change_history,
-                "behavioural_barrier": behavioural_barrier # NEW
+                "behavioural_barrier": behavioural_barrier, # NEW
+                # --- NEW FIELD FOR IDEA #2 ---
+                "status": "Intake" 
+                # --- END NEW FIELD ---
             }
 
             # 2. Call logic
@@ -137,9 +149,9 @@ def pmo_dashboard_page():
         st.error(f"Failed to load database. Have you updated `database.py`? Error: {e}")
         return
 
-    # --- NEW: Strategic Dashboard Filters ---
+# --- UPDATED: Strategic Dashboard Filters ---
     st.subheader("Dashboard Filters")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3) 
     
     # Filter by Strategic Goal (for Ben)
     if 'strategic_alignment' in df_full.columns:
@@ -156,6 +168,16 @@ def pmo_dashboard_page():
     else:
         selected_sponsor = "All"
         col2.warning("Add 'exec_sponsor' column to DB.")
+        
+    # --- NEW FILTER FOR IDEA #2 ---
+    if 'status' in df_full.columns:
+        # Use a defined list for logical order
+        status_options = ["All", "Active", "Intake", "Planning", "Monitoring", "Closed"]
+        selected_status = col3.selectbox("Filter by Project Status:", options=status_options)
+    else:
+        selected_status = "All"
+        col3.warning("Add 'status' column to DB.")
+    # --- END NEW FILTER ---
 
     # Apply filters to create the working DataFrame 'df'
     df = df_full.copy()
@@ -163,18 +185,58 @@ def pmo_dashboard_page():
         df = df[df['strategic_alignment'] == selected_goal]
     if selected_sponsor != "All":
         df = df[df['exec_sponsor'] == selected_sponsor]
+    # --- APPLY THE NEW STATUS FILTER ---
+    if selected_status != "All":
+        df = df[df['status'] == selected_status]
+    # --- END ---
 
     if df.empty:
         st.warning("No projects match the current filter.")
         return
 
+
+# --- NEW: Capacity Dashboard (Idea #3) ---
+    st.markdown("---")
+    st.subheader("👩‍💼 Change Manager Capacity")
+    
+    if 'effort_score' in df.columns:
+        # Calculate total effort from the *filtered* dataframe 'df'
+        total_effort = df['effort_score'].sum()
+        
+        # Avoid division by zero if capacity is 0
+        if TOTAL_CHANGE_CAPACITY > 0:
+            capacity_percentage = total_effort / TOTAL_CHANGE_CAPACITY
+        else:
+            capacity_percentage = 0
+        
+        # Make the color change based on capacity
+        if capacity_percentage >= 0.9:
+            st.error(f"**At Capacity: {int(capacity_percentage * 100)}% Utilized**")
+        elif capacity_percentage >= 0.7:
+            st.warning(f"**Nearing Capacity: {int(capacity_percentage * 100)}% Utilized**")
+        else:
+            st.success(f"**Capacity Normal: {int(capacity_percentage * 100)}% Utilized**")
+
+        # The visual progress bar
+        st.progress(min(capacity_percentage, 1.0)) # Cap at 100% for the bar
+        
+        st.metric(
+            label=f"Total Effort Points (for Filtered Projects)", 
+            value=f"{total_effort} / {TOTAL_CHANGE_CAPACITY}",
+            help=f"This sums the effort points for all projects matching the filters above. To see total active workload, set the 'Project Status' filter to 'Active'."
+        )
+
+    else:
+        st.warning("Could not find 'effort_score' column. Please re-submit a project to populate this data.")
+    # --- END NEW: Capacity Dashboard ---
+
     # --- Display KPIs (based on filtered data) ---
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Active Projects (Filtered)", len(df))
+    # --- METRIC TITLE IS NOW MORE ACCURATE ---
+    col1.metric("Projects (Filtered)", len(df)) 
     col2.metric("'Full Support' Projects", len(df[df['change_tier'] == 'Full Support']))
     col3.metric("'Light Support' Projects", len(df[df['change_tier'] == 'Light Support']))
-
     # --- Display Charts (using filtered 'df') ---
     st.markdown("---")
     
@@ -237,11 +299,239 @@ def pmo_dashboard_page():
     st.subheader("Full Project Portfolio (Filtered)")
     st.dataframe(df) # Display the filtered data in an interactive table
 
+# --- 3. The Project "Drill-Down" Page (NEW for Idea #1) ---
+def project_detail_page():
+    st.title("🔎 Project Details & Workbench")
+    st.markdown("Select a project to view its details and update its status.")
+
+    # --- Load all project names for the selector ---
+    try:
+        with engine.connect() as conn:
+            # Get all projects, but just the ID and name
+            projects = conn.execute(select(
+                change_portfolio_table.c.id, 
+                change_portfolio_table.c.project_name
+            )).fetchall()
+        
+        if not projects:
+            st.warning("No projects found. Please submit one via the Intake Form.")
+            return
+        
+        # Create a mapping of project name -> id
+        project_map = {project.project_name: project.id for project in projects}
+        project_names = ["Select a project..."] + list(project_map.keys())
+        
+        selected_project_name = st.selectbox("Select Project:", options=project_names)
+
+    except Exception as e:
+        st.error(f"Error loading projects: {e}")
+        return
+
+    # --- Once a project is selected, show its details ---
+    if selected_project_name != "Select a project...":
+        project_id = project_map[selected_project_name]
+
+        # 1. Get the project's data
+        with engine.connect() as conn:
+            stmt = select(change_portfolio_table).where(change_portfolio_table.c.id == project_id)
+            project_data = conn.execute(stmt).fetchone() # Get the first (and only) row
+            
+            if not project_data:
+                st.error("Project not found.")
+                return
+
+        # 2. Display the data
+        st.subheader(f"Project: {project_data.project_name}")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Change Tier", project_data.change_tier)
+        col2.metric("Impact Score", project_data.impact_score)
+        col3.metric("Go-Live Date", str(project_data.go_live_date))
+        col4.metric("Executive Sponsor", project_data.exec_sponsor)
+
+        st.markdown("---")
+
+        # --- IMPLEMENTATION OF IDEA #2 ---
+        st.subheader("Change Manager Workbench")
+        
+        status_options = ["Intake", "Planning", "Active", "Monitoring", "Closed"]
+        current_status = project_data.status
+        current_status_index = status_options.index(current_status) if current_status in status_options else 0
+        
+        new_status = st.selectbox(
+            "Update Project Status:",
+            options=status_options,
+            index=current_status_index
+        )
+
+        if st.button("Save Status Update"):
+            try:
+                with engine.connect() as conn:
+                    update_stmt = update(change_portfolio_table).where(
+                        change_portfolio_table.c.id == project_id
+                    ).values(
+                        status=new_status
+                    )
+                    conn.execute(update_stmt)
+                    conn.commit()
+                st.success(f"Status updated to **{new_status}**!")
+                st.rerun() # Refresh the page to show the new state
+            except Exception as e:
+                st.error(f"Failed to update status: {e}")
+        # --- END IDEA #2 IMPLEMENTATION ---
+
+# --- REBUILT SECTION FOR IDEA #4 ---
+        st.markdown("---")
+        st.subheader("Interactive Change Playbook")
+        
+        try:
+            # 1. Load the playbook JSON string from the database
+            playbook_json = project_data.playbook_data
+            
+            # 2. Convert it into a Python list of dictionaries
+            if playbook_json:
+                playbook_list = json.loads(playbook_json)
+            else:
+                playbook_list = [] # Handle empty/old data
+
+            # 3. Convert to a Pandas DataFrame
+            playbook_df = pd.DataFrame(playbook_list)
+
+            # 4. Use st.data_editor to display and edit
+            edited_df = st.data_editor(
+                playbook_df,
+                column_config={
+                    # Configure the 'Status' column as a dropdown
+                    "Status": st.column_config.SelectboxColumn(
+                        "Status",
+                        options=["To Do", "In Progress", "Done"],
+                        required=True,
+                    ),
+                    # Make 'Category' and 'Task' wider
+                    "Category": st.column_config.TextColumn(width="medium"),
+                    "Task": st.column_config.TextColumn(width="large"),
+                },
+                hide_index=True, # Don't show the 0, 1, 2...
+                num_rows="dynamic" # Allow adding/deleting rows
+            )
+
+            # 5. Add a "Save Playbook" button
+            if st.button("Save Playbook Updates"):
+                # Convert the edited DataFrame back into a JSON string
+                updated_playbook_json = edited_df.to_json(orient="records")
+                
+                # Save it back to the database
+                with engine.connect() as conn:
+                    update_stmt = update(change_portfolio_table).where(
+                        change_portfolio_table.c.id == project_id
+                    ).values(
+                        playbook_data=updated_playbook_json
+                    )
+                    conn.execute(update_stmt)
+                    conn.commit()
+                st.success("Playbook updated successfully!")
+                st.rerun()
+
+        except Exception as e:
+            st.error(f"Error loading playbook: {e}")
+            st.info("Note: Projects submitted before this feature was added may not have a playbook. Please re-submit.")
+        # --- END REBUILT SECTION ---
+
+
+
+
+# --- 4. The "My Workbench" Page (NEW for Idea #5) ---
+def my_workbench_page():
+    st.title("👩‍💼 My Change Workbench")
+    st.markdown("Your personal cockpit for all *active* projects and tasks.")
+
+    # --- Load all data from the database ---
+    try:
+        df_full = pd.read_sql_table("change_portfolio", engine)
+        if df_full.empty:
+            st.error("No project data found. Please submit a project on the Intake Form.")
+            return
+    except Exception as e:
+        st.error(f"Failed to load database. Error: {e}")
+        return
+
+    # --- 1. Filter for "Active" Projects ---
+    df_active = df_full[df_full['status'] == 'Active'].copy()
+
+    st.markdown("---")
+    st.subheader("My Active Projects")
+    
+    if df_active.empty:
+        st.info("You have no 'Active' projects in the portfolio.")
+    else:
+        # Display a streamlined view of active projects
+        st.dataframe(df_active[[
+            'project_name', 
+            'change_tier', 
+            'effort_score', 
+            'exec_sponsor', 
+            'go_live_date'
+        ]], use_container_width=True)
+
+    # --- 2. Aggregate All "Priority" Tasks ---
+    st.markdown("---")
+    st.subheader("My Priority Tasks (To Do / In Progress)")
+    
+    all_tasks = []
+
+    # Iterate through each *active* project
+    for index, project in df_active.iterrows():
+        project_name = project['project_name']
+        playbook_json = project['playbook_data']
+        
+        if playbook_json:
+            try:
+                # Load the list of tasks from the JSON string
+                playbook_list = json.loads(playbook_json)
+                
+                # Find all tasks that are NOT 'Done'
+                for task in playbook_list:
+                    if task['Status'] != 'Done':
+                        # Add them to our master list, tagged with the project name
+                        all_tasks.append({
+                            "Project": project_name,
+                            "Category": task['Category'],
+                            "Task": task['Task'],
+                            "Status": task['Status']
+                        })
+            except Exception as e:
+                # This catches errors if the JSON is bad
+                st.warning(f"Could not parse playbook for {project_name}. Error: {e}")
+
+    # --- Display the master task list ---
+    if not all_tasks:
+        st.success("You have no outstanding tasks on active projects. All done! 🎉")
+    else:
+        tasks_df = pd.DataFrame(all_tasks)
+        st.dataframe(tasks_df, use_container_width=True)
+        st.markdown(f"**You have {len(tasks_df)} total priority tasks across {len(df_active)} active projects.**")
+        st.info("To edit a task, go to the 'Project Details' page and select the project.")
+
+
+
+
 # --- Main App Router (Sidebar) ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Project Intake Form", "PMO Dashboard"])
+# --- UPDATED LIST ---
+page = st.sidebar.radio("Go to:", [
+    "My Workbench", # <--- NEW
+    "PMO Dashboard", 
+    "Project Details",
+    "Project Intake Form" 
+])
 
 if page == "Project Intake Form":
     intake_form_page()
-else:
+elif page == "PMO Dashboard":
     pmo_dashboard_page()
+elif page == "Project Details":
+    project_detail_page()
+# --- NEW PAGE ROUTE ---
+elif page == "My Workbench":
+    my_workbench_page()
+# --- END NEW PAGE ---
