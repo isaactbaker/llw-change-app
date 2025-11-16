@@ -66,7 +66,6 @@ champion_network_table = sqlalchemy.Table(
 # --- END NEW TABLE ---
 
 
-
 # --- NEW TABLE FOR CHANGE HEALTH DASHBOARD (PHASE 3) ---
 health_snapshot_table = sqlalchemy.Table(
     "health_snapshot",
