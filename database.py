@@ -2,7 +2,7 @@
 import sqlalchemy
 
 # Define the database connection
-DATABASE_URL = "sqlite:///./change_portfolio_v6.db"
+DATABASE_URL = "sqlite:///./change_portfolio_v9.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
@@ -27,7 +27,13 @@ change_portfolio_table = sqlalchemy.Table(
     sqlalchemy.Column("status", sqlalchemy.String, default="Intake"),
     sqlalchemy.Column("playbook_data", sqlalchemy.String),
     # --- END NEW COLUMN ---
-    
+    # --- NEW COLUMN FOR READINESS PLAN ---
+    sqlalchemy.Column("readiness_plan_html", sqlalchemy.String),
+    # --- END NEW COLUMN ---
+    # --- NEW COLUMN FOR COMMS CAMPAIGN ---
+    sqlalchemy.Column("comms_campaign_html", sqlalchemy.String),
+    # --- END NEW COLUMN ---
+
     sqlalchemy.Column("submission_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
 )
 
@@ -45,7 +51,7 @@ friction_log_table = sqlalchemy.Table(
 # --- END NEW TABLE ---
 
 
-# --- ADD THIS NEW TABLE ---
+# --- NEW TABLE FOR CHAMPION NETWORK (IDEA #2) ---
 champion_network_table = sqlalchemy.Table(
     "champion_network",
     metadata,

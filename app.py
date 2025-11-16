@@ -302,15 +302,17 @@ def pmo_dashboard_page():
     st.subheader("Full Project Portfolio (Filtered)")
     st.dataframe(df) # Display the filtered data in an interactive table
 
-# --- 3. The Project "Drill-Down" Page (NEW for Idea #1) ---
+
+
+# --- 3. The Project "Drill-Down" Page (REBUILT with Tabs) ---
 def project_detail_page():
     st.title("🔎 Project Details & Workbench")
     st.markdown("Select a project to view its details and update its status.")
 
-    # --- Load all project names for the selector ---
+    # --- (This part is unchanged) ---
+    # Load all project names for the selector
     try:
         with engine.connect() as conn:
-            # Get all projects, but just the ID and name
             projects = conn.execute(select(
                 change_portfolio_table.c.id, 
                 change_portfolio_table.c.project_name
@@ -320,10 +322,8 @@ def project_detail_page():
             st.warning("No projects found. Please submit one via the Intake Form.")
             return
         
-        # Create a mapping of project name -> id
         project_map = {project.project_name: project.id for project in projects}
         project_names = ["Select a project..."] + list(project_map.keys())
-        
         selected_project_name = st.selectbox("Select Project:", options=project_names)
 
     except Exception as e:
@@ -337,26 +337,23 @@ def project_detail_page():
         # 1. Get the project's data
         with engine.connect() as conn:
             stmt = select(change_portfolio_table).where(change_portfolio_table.c.id == project_id)
-            project_data = conn.execute(stmt).fetchone() # Get the first (and only) row
+            project_data = conn.execute(stmt).fetchone() 
             
             if not project_data:
                 st.error("Project not found.")
                 return
 
-        # 2. Display the data
+        # 2. Display the data (unchanged)
         st.subheader(f"Project: {project_data.project_name}")
-        
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Change Tier", project_data.change_tier)
         col2.metric("Impact Score", project_data.impact_score)
         col3.metric("Go-Live Date", str(project_data.go_live_date))
         col4.metric("Executive Sponsor", project_data.exec_sponsor)
-
         st.markdown("---")
 
-        # --- IMPLEMENTATION OF IDEA #2 ---
+        # 3. Change Manager Workbench (unchanged)
         st.subheader("Change Manager Workbench")
-        
         status_options = ["Intake", "Planning", "Active", "Monitoring", "Closed"]
         current_status = project_data.status
         current_status_index = status_options.index(current_status) if current_status in status_options else 0
@@ -372,73 +369,146 @@ def project_detail_page():
                 with engine.connect() as conn:
                     update_stmt = update(change_portfolio_table).where(
                         change_portfolio_table.c.id == project_id
-                    ).values(
-                        status=new_status
-                    )
+                    ).values(status=new_status)
                     conn.execute(update_stmt)
                     conn.commit()
                 st.success(f"Status updated to **{new_status}**!")
-                st.rerun() # Refresh the page to show the new state
+                st.rerun() 
             except Exception as e:
                 st.error(f"Failed to update status: {e}")
-        # --- END IDEA #2 IMPLEMENTATION ---
-
-# --- REBUILT SECTION FOR IDEA #4 ---
-        st.markdown("---")
-        st.subheader("Interactive Change Playbook")
         
-        try:
-            # 1. Load the playbook JSON string from the database
-            playbook_json = project_data.playbook_data
-            
-            # 2. Convert it into a Python list of dictionaries
-            if playbook_json:
-                playbook_list = json.loads(playbook_json)
+        st.markdown("---")
+
+        # --- NEW: Create Tabs for Playbook and Diagnostic ---
+        tab_playbook, tab_diagnostic = st.tabs([
+            "📖 Interactive Playbook", 
+            "🚀 Readiness Diagnostic"
+        ])
+
+        # --- Tab 1: Interactive Playbook (Your existing code) ---
+        with tab_playbook:
+            st.subheader("Interactive Change Playbook")
+            try:
+                playbook_json = project_data.playbook_data
+                if playbook_json:
+                    playbook_list = json.loads(playbook_json)
+                else:
+                    playbook_list = [] 
+
+                playbook_df = pd.DataFrame(playbook_list)
+
+                edited_df = st.data_editor(
+                    playbook_df,
+                    column_config={
+                        "Status": st.column_config.SelectboxColumn(
+                            "Status",
+                            options=["To Do", "In Progress", "Done"],
+                            required=True,
+                        ),
+                        "Category": st.column_config.TextColumn(width="medium"),
+                        "Task": st.column_config.TextColumn(width="large"),
+                    },
+                    hide_index=True,
+                    num_rows="dynamic"
+                )
+
+                if st.button("Save Playbook Updates"):
+                    updated_playbook_json = edited_df.to_json(orient="records")
+                    with engine.connect() as conn:
+                        update_stmt = update(change_portfolio_table).where(
+                            change_portfolio_table.c.id == project_id
+                        ).values(playbook_data=updated_playbook_json)
+                        conn.execute(update_stmt)
+                        conn.commit()
+                    st.success("Playbook updated successfully!")
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Error loading playbook: {e}")
+                st.info("Note: Projects submitted before this feature was added may not have a playbook.")
+
+        # --- Tab 2: Readiness Diagnostic (NEW FEATURE) ---
+        with tab_diagnostic:
+            st.subheader("Behavioral Readiness Diagnostic (COM-B)")
+
+            # Logic Gate: Only show for Medium/Full support projects
+            if project_data.change_tier == "Light Support":
+                st.info("This project is 'Light Support'. A full behavioral diagnostic is not required.")
+                st.markdown("This tool is designed for Medium and Full Support projects where identifying specific behavioral barriers (Capability, Opportunity, Motivation) is critical.")
             else:
-                playbook_list = [] # Handle empty/old data
+                # Show saved plan first
+                if project_data.readiness_plan_html:
+                    st.subheader("Saved Intervention Plan")
+                    st.markdown(project_data.readiness_plan_html, unsafe_allow_html=True)
+                    st.markdown("---")
+                    st.info("To generate a new plan, fill out the form below. Saving will overwrite the plan above.")
 
-            # 3. Convert to a Pandas DataFrame
-            playbook_df = pd.DataFrame(playbook_list)
-
-            # 4. Use st.data_editor to display and edit
-            edited_df = st.data_editor(
-                playbook_df,
-                column_config={
-                    # Configure the 'Status' column as a dropdown
-                    "Status": st.column_config.SelectboxColumn(
-                        "Status",
-                        options=["To Do", "In Progress", "Done"],
-                        required=True,
-                    ),
-                    # Make 'Category' and 'Task' wider
-                    "Category": st.column_config.TextColumn(width="medium"),
-                    "Task": st.column_config.TextColumn(width="large"),
-                },
-                hide_index=True, # Don't show the 0, 1, 2...
-                num_rows="dynamic" # Allow adding/deleting rows
-            )
-
-            # 5. Add a "Save Playbook" button
-            if st.button("Save Playbook Updates"):
-                # Convert the edited DataFrame back into a JSON string
-                updated_playbook_json = edited_df.to_json(orient="records")
+                # The 10-Min Input Form
+                st.subheader("Generate New Intervention Plan")
                 
-                # Save it back to the database
-                with engine.connect() as conn:
-                    update_stmt = update(change_portfolio_table).where(
-                        change_portfolio_table.c.id == project_id
-                    ).values(
-                        playbook_data=updated_playbook_json
-                    )
-                    conn.execute(update_stmt)
-                    conn.commit()
-                st.success("Playbook updated successfully!")
-                st.rerun()
+                # Use a consistent list of departments
+                dept_options = ["Frontline Clinical", "AOD Services", "Mental Health", "Corporate (HR/Finance)", "IT", "Leadership", "All Staff"]
 
-        except Exception as e:
-            st.error(f"Error loading playbook: {e}")
-            st.info("Note: Projects submitted before this feature was added may not have a playbook. Please re-submit.")
-        # --- END REBUILT SECTION ---
+                with st.form("readiness_form"):
+                    low_groups = st.multiselect(
+                        "Which groups show low readiness? *", 
+                        options=dept_options
+                    )
+                    barrier = st.selectbox(
+                        "What is the primary *barrier* you observe? (COM-B) *", 
+                        options=[
+                            "Capability (They don't know how)", 
+                            "Opportunity (The system/process is the barrier)", 
+                            "Motivation (They don't want to / are cynical)"
+                        ]
+                    )
+                    rumor = st.text_area(
+                        "What is the main 'rumor' or 'story' you are hearing? *", 
+                        placeholder="e.g., 'This is just another cost-cutting exercise' or 'This will double our admin work.'"
+                    )
+                    
+                    submitted = st.form_submit_button("Generate Intervention Plan")
+
+                if submitted:
+                    if not low_groups or not barrier or not rumor:
+                        st.error("Please fill in all required fields (*).")
+                    else:
+                        with st.spinner("🤖 Dr. Baker is diagnosing... Generating behavioral plan..."):
+                            report = ai_logic.run_readiness_diagnostic(
+                                project_name=project_data.project_name,
+                                low_readiness_groups=low_groups,
+                                barrier=barrier,
+                                rumor=rumor
+                            )
+                            # Save to session state to display it
+                            st.session_state[f'readiness_report_{project_id}'] = report
+                
+                # Display the generated report from session state
+                report_key = f'readiness_report_{project_id}'
+                if report_key in st.session_state:
+                    st.markdown("---")
+                    st.subheader("Generated AI Plan")
+                    
+                    generated_report = st.session_state[report_key]
+                    st.markdown(generated_report)
+                    
+                    # Add the "Save Plan" button
+                    if st.button("Save This Plan to the Project"):
+                        try:
+                            with engine.connect() as conn:
+                                update_stmt = update(change_portfolio_table).where(
+                                    change_portfolio_table.c.id == project_id
+                                ).values(
+                                    readiness_plan_html=generated_report
+                                )
+                                conn.execute(update_stmt)
+                                conn.commit()
+                            st.success("Intervention plan saved successfully!")
+                            # Clear the session state key after saving
+                            del st.session_state[report_key]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to save plan: {e}")
 
 
 # --- 4. The "My Workbench" Page (REBUILT for Idea #5 + AI Analyst) ---
@@ -578,7 +648,7 @@ def my_workbench_page():
 
 
 
-# --- 5. The "Champion Network" Page (NEW for Co-Pilot) ---
+# --- 5. The "Champion Network" Page (CORRECTED VERSION) ---
 def champion_network_page():
     st.title("👥 Change Champion Network")
     st.markdown("Manage your network of champions and use the AI Co-pilot to scale your engagement.")
@@ -602,11 +672,10 @@ def champion_network_page():
     # --- Create Tabs for this page ---
     tab_manage, tab_copilot = st.tabs(["Manage Network", "AI Co-pilot"])
 
-    # --- Tab 1: Manage Champion Network ---
+    # --- Tab 1: Manage Champion Network (Unchanged) ---
     with tab_manage:
         st.subheader("Add a New Champion")
         
-        # Consistent list of departments
         dept_options = ["Frontline Clinical", "AOD Services", "Mental Health", "Corporate (HR/Finance)", "IT", "Leadership", "All Staff"]
 
         with st.form("add_champion_form"):
@@ -634,18 +703,17 @@ def champion_network_page():
 
         st.markdown("---")
         
-        # Display the full network
         st.subheader("Current Champion Network")
         try:
             df_champions = pd.read_sql_table("champion_network", engine)
             if df_champions.empty:
                 st.info("No champions have been added yet.")
             else:
-                st.dataframe(df_champions, width='stretch')
+                st.dataframe(df_champions, width='stretch') # <-- Already includes the 'width' fix
         except Exception as e:
             st.error(f"Failed to load champion network. Error: {e}")
 
-    # --- Tab 2: AI Co-pilot ---
+    # --- Tab 2: AI Co-pilot (CORRECTED LOGIC) ---
     with tab_copilot:
         st.subheader("Generate Champion Communications")
         st.markdown("Select a project to generate context-aware communications for your champions.")
@@ -657,7 +725,6 @@ def champion_network_page():
         selected_project = st.selectbox("Select Project for Comms", options=project_names)
         
         if selected_project:
-            # Get the context for this project
             project_context = project_data_map.get(selected_project)
             
             if not project_context:
@@ -668,11 +735,14 @@ def champion_network_page():
 
             col1, col2 = st.columns(2)
             
+            # --- DEFINE A DYNAMIC SESSION STATE KEY ---
+            report_key = f'champion_report_{selected_project}'
+
             # Button 1: Kick-off Email
             if col1.button("Generate Kick-off Email"):
                 with st.spinner("🤖 Co-pilot is drafting the email..."):
                     email_draft = ai_logic.run_champion_kickoff_email(selected_project)
-                    st.session_state['ai_output'] = email_draft # Save to session state
+                    st.session_state[report_key] = email_draft # <-- Use dynamic key
 
             # Button 2: Talking Points
             if col2.button("Generate Talking Points Brief"):
@@ -682,15 +752,115 @@ def champion_network_page():
                         change_tier=project_context['change_tier'],
                         behavioural_barrier=project_context['behavioural_barrier']
                     )
-                    st.session_state['ai_output'] = brief_draft # Save to session state
+                    st.session_state[report_key] = brief_draft # <-- Use dynamic key
 
             # Display the result
-            if 'ai_output' in st.session_state:
+            if report_key in st.session_state:
                 st.markdown("---")
                 st.subheader("AI Co-pilot Draft")
                 st.text_area("You can edit and copy the text below:", 
-                             value=st.session_state['ai_output'], 
+                             value=st.session_state[report_key], 
                              height=400)
+
+# --- 6. The "Comms Campaign Director" Page (NEW) ---
+def comms_campaign_page():
+    st.title("📣 Comms Campaign Director")
+    st.markdown("Design a multi-phase, behavioral communications campaign for any project.")
+
+    # --- Load all project names and context ---
+    try:
+        df_projects = pd.read_sql_table("change_portfolio", engine)
+        if df_projects.empty:
+            st.warning("No projects found. Please submit a project first.")
+            project_names = []
+            project_data_map = {}
+        else:
+            project_names = ["Select a project..."] + df_projects['project_name'].tolist()
+            # Create a dictionary to look up project data by name
+            project_data_map = df_projects.set_index('project_name').to_dict('index')
+            
+    except Exception as e:
+        st.error(f"Failed to load project database. Error: {e}")
+        return
+
+    # --- The 10-Min Input Form ---
+    with st.form("comms_campaign_form"):
+        st.subheader("Campaign Inputs")
+        
+        selected_project = st.selectbox(
+            "Which project is this campaign for? *", 
+            options=project_names
+        )
+        
+        audience_segments = st.multiselect(
+            "Select your audience segments: *", 
+            options=["Enthusiasts", "Skeptics", "Fence-Sitters", "Impacted Managers", "Frontline Staff", "Leadership"]
+        )
+        
+        narrative = st.text_input(
+            "What is the single most important message (Master Narrative)? *", 
+            placeholder="e.g., 'This frees up our clinicians to spend more time with clients.'"
+        )
+        
+        tough_question = st.text_area(
+            "What is the biggest 'tough question' you expect? *", 
+            placeholder="e.g., 'Is this going to automate my job?' or 'Why are we doing this now?'"
+        )
+        
+        submitted = st.form_submit_button("Generate Behavioral Comms Campaign")
+
+    # --- Form Submission & AI Call ---
+    if submitted:
+        if selected_project == "Select a project..." or not audience_segments or not narrative or not tough_question:
+            st.error("Please fill in all required fields (*).")
+        else:
+            with st.spinner("🤖 The Comms Director is drafting your campaign..."):
+                campaign_report = ai_logic.run_comms_campaign_generator(
+                    project_name=selected_project,
+                    audience_segments=audience_segments,
+                    narrative=narrative,
+                    tough_question=tough_question
+                )
+                # Save to session state to display
+                st.session_state[f'comms_report_{selected_project}'] = campaign_report
+
+    # --- Display the Generated Report ---
+    report_key = f'comms_report_{selected_project}'
+    if report_key in st.session_state:
+        st.markdown("---")
+        st.subheader("Generated AI Campaign Blueprint")
+        
+        generated_report = st.session_state[report_key]
+        st.markdown(generated_report)
+        
+        # Add the "Save Plan" button
+        if st.button("Save This Campaign to the Project"):
+            try:
+                # Get the project ID from the name
+                project_id = project_data_map[selected_project]['id']
+                
+                with engine.connect() as conn:
+                    update_stmt = update(change_portfolio_table).where(
+                        change_portfolio_table.c.id == project_id
+                    ).values(
+                        comms_campaign_html=generated_report
+                    )
+                    conn.execute(update_stmt)
+                    conn.commit()
+                st.success(f"Campaign saved to '{selected_project}' successfully!")
+                # Clear the session state key after saving
+                del st.session_state[report_key]
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to save plan: {e}")
+
+    # --- Show Saved Plan (if one exists) ---
+    if selected_project != "Select a project...":
+        project_data = project_data_map.get(selected_project)
+        if project_data and project_data.get('comms_campaign_html'):
+            st.markdown("---")
+            st.subheader(f"Saved Campaign Plan for '{selected_project}'")
+            st.markdown(project_data['comms_campaign_html'], unsafe_allow_html=True)
 
 
 
@@ -702,7 +872,8 @@ page = st.sidebar.radio("Go to:", [
     "My Workbench",
     "PMO Dashboard", 
     "Project Details",
-    "Champion Network", # <--- NEW
+    "Champion Network",
+    "📣 Comms Campaign Director", # <--- NEW
     "Project Intake Form"
 ])
 
@@ -714,7 +885,9 @@ elif page == "Project Details":
     project_detail_page()
 elif page == "My Workbench":
     my_workbench_page()
-# --- NEW PAGE ROUTE ---
 elif page == "Champion Network":
     champion_network_page()
+# --- NEW PAGE ROUTE ---
+elif page == "📣 Comms Campaign Director":
+    comms_campaign_page()
 # --- END NEW PAGE ---
