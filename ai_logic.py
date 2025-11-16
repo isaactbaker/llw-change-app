@@ -123,6 +123,42 @@ Your blueprint must be formatted in professional Markdown and include all five o
 # --- END NEW PROMPT ---
 
 
+# --- NEW PROMPTS FOR MANAGER CO-PILOT ---
+
+PROMPT_MANAGER_BURNOUT = """
+You are an expert in organizational psychology and supportive management.
+I am a manager and I think a team member is burned out.
+The behavior I'm observing is: '{behavior}'
+
+Give me a 3-step guide on how to approach them supportively.
+Provide a simple, empathetic, and safe script I can use to *start* the conversation.
+The script must be non-confrontational and focused on offering support.
+"""
+
+PROMPT_MANAGER_CRUCIAL_CONVO = """
+You are an expert in workplace communication and crucial conversations.
+I am a manager and I need to have a crucial conversation with an employee.
+- The specific topic is: '{topic}'
+- The employee is likely feeling: '{emotion}'
+
+Give me a 3-step guide on how to structure this conversation.
+Provide a simple, clear, and evidence-based script I can use to *open* the conversation.
+The script must be direct but non-accusatory.
+"""
+
+PROMPT_MANAGER_OARS = """
+You are an expert in Motivational Interviewing and the OARS model.
+I am a manager trying to help an employee who is resistant to a change.
+- The project is: '{project_name}'
+- Their resistance statement is: '{resistance_statement}'
+
+Give me a 3-step guide on how to apply the OARS model (Open Questions, Affirmations, Reflections, Summaries) in this specific situation.
+Provide a sample script I can use that includes an example of each OARS component.
+"""
+# --- END NEW PROMPTS ---
+
+
+
 # 3. API-Calling Functions
 
 def get_api_client():
@@ -217,4 +253,38 @@ def run_comms_campaign_generator(project_name: str, audience_segments: list, nar
         "tough_question": tough_question
     }
     return call_ai_analysis(PROMPT_COMMS_CAMPAIGN, payload, system_prompt)
+# --- END NEW FUNCTION ---
+
+
+# --- NEW FUNCTION FOR MANAGER CO-PILOT ---
+def run_manager_copilot(tool_choice: str, context: dict) -> str:
+    """
+    Routes the manager's request to the correct AI prompt.
+    """
+    system_prompt = "You are an expert, supportive manager and organizational psychologist."
+    
+    if tool_choice == "Supporting a Burned-Out Team Member":
+        prompt_template = PROMPT_MANAGER_BURNOUT
+        system_prompt = "You are an expert in organizational psychology and supportive management."
+        payload = {"behavior": context.get("behavior", "not specified")}
+    
+    elif tool_choice == "Having a Crucial Conversation":
+        prompt_template = PROMPT_MANAGER_CRUCIAL_CONVO
+        system_prompt = "You are an expert in workplace communication and crucial conversations."
+        payload = {
+            "topic": context.get("topic", "a difficult topic"),
+            "emotion": context.get("emotion", "anxious or defensive")
+        }
+        
+    elif tool_choice == "Handling Resistance (OARS Model)":
+        prompt_template = PROMPT_MANAGER_OARS
+        system_prompt = "You are an expert in Motivational Interviewing and the OARS model."
+        payload = {
+            "project_name": context.get("project_name", "a new project"),
+            "resistance_statement": context.get("resistance_statement", "I don't think this is a good idea.")
+        }
+    else:
+        return "Error: Invalid tool choice selected."
+
+    return call_ai_analysis(prompt_template, payload, system_prompt)
 # --- END NEW FUNCTION ---

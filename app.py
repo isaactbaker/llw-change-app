@@ -5,10 +5,11 @@ import plotly.express as px
 from sqlalchemy.sql import select, insert, update
 import numpy as np
 import json
+import datetime
 
 # Import our setup
 # --- UPDATED IMPORTS ---
-from database import engine, change_portfolio_table, friction_log_table, champion_network_table
+from database import engine, change_portfolio_table, friction_log_table, champion_network_table, health_snapshot_table # <-- ADDED
 from logic import TOOLKITS, calculate_triage
 # --- UPDATED AI IMPORT ---
 import ai_logic 
@@ -233,6 +234,71 @@ def pmo_dashboard_page():
         st.warning("Could not find 'effort_score' column. Please re-submit a project to populate this data.")
     # --- END NEW: Capacity Dashboard ---
 
+
+# --- NEW: Portfolio Change Health (PHASE 3 DELIVERABLE) ---
+    st.markdown("---")
+    st.subheader("📈 Portfolio Change Health (Latest Snapshots)")
+    st.markdown("This dashboard shows the latest health metrics for all **filtered** projects.")
+
+    try:
+        df_health_full = pd.read_sql_table("health_snapshot", engine)
+        if df_health_full.empty:
+            st.info("No health snapshots have been logged yet. Data will appear here once you log it on the 'Project Details' page.")
+        else:
+            # Get the single latest snapshot for EACH project
+            df_latest_health = df_health_full.sort_values('log_date').groupby('project_id').last().reset_index()
+            
+            # Merge with the filtered project list 'df'
+            # This ensures we only show health for "Active" projects (or whatever the filter is)
+            df_health_merged = pd.merge(
+                df, 
+                df_latest_health, 
+                left_on='id', 
+                right_on='project_id', 
+                how='inner'
+            )
+
+            if df_health_merged.empty:
+                st.warning("No projects in your current filter (e.g., 'Active') have any health snapshots logged.")
+            else:
+                # 1. Display KPIs (for Ben)
+                col1, col2, col3 = st.columns(3)
+                col1.metric(
+                    f"Avg. Readiness (Filtered)", 
+                    f"{df_health_merged['readiness_score'].mean():.1f} / 5"
+                )
+                col2.metric(
+                    f"Avg. Adoption Rate (Filtered)", 
+                    f"{df_health_merged['adoption_rate_pct'].mean():.0f}%"
+                )
+                col3.metric(
+                    f"Avg. Manager Confidence (Filtered)", 
+                    f"{df_health_merged['manager_confidence'].mean():.1f} / 5"
+                )
+                
+                # 2. Display Bubble Chart (for Ben)
+                fig_health = px.scatter(
+                    df_health_merged,
+                    x='readiness_score',
+                    y='adoption_rate_pct',
+                    size='effort_score',
+                    color='change_tier',
+                    hover_name='project_name',
+                    title='Project Health: Readiness vs. Adoption',
+                    labels={
+                        'readiness_score': 'Readiness Score (1-5)',
+                        'adoption_rate_pct': 'Adoption Rate (%)'
+                    },
+                    color_discrete_map={'Light Support':'green', 'Medium Support':'orange', 'Full Support':'red'}
+                )
+                fig_health.update_layout(xaxis=dict(range=[0.5, 5.5]), yaxis=dict(range=[-5, 105]))
+                st.plotly_chart(fig_health, width='stretch')
+    except Exception as e:
+        st.error(f"Error loading Health Dashboard: {e}")
+    # --- END NEW HEALTH DASHBOARD ---
+
+
+
     # --- Display KPIs (based on filtered data) ---
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
@@ -242,7 +308,12 @@ def pmo_dashboard_page():
     col3.metric("'Light Support' Projects", len(df[df['change_tier'] == 'Light Support']))
     # --- Display Charts (using filtered 'df') ---
     st.markdown("---")
-    
+
+
+
+
+
+
     # --- NEW: Chart 1: Change Saturation Map (Nicole's View) ---
     st.subheader("🔥 Change Saturation Map")
     st.markdown("This map shows which teams are most impacted by the *filtered* change portfolio.")
@@ -305,12 +376,12 @@ def pmo_dashboard_page():
 
 
 # --- 3. The Project "Drill-Down" Page (REBUILT with Tabs) ---
+# --- 3. The Project "Drill-Down" Page (REBUILT with Health Tab) ---
 def project_detail_page():
     st.title("🔎 Project Details & Workbench")
     st.markdown("Select a project to view its details and update its status.")
 
-    # --- (This part is unchanged) ---
-    # Load all project names for the selector
+    # --- (Load project selector - unchanged) ---
     try:
         with engine.connect() as conn:
             projects = conn.execute(select(
@@ -334,7 +405,7 @@ def project_detail_page():
     if selected_project_name != "Select a project...":
         project_id = project_map[selected_project_name]
 
-        # 1. Get the project's data
+        # 1. Get the project's data (unchanged)
         with engine.connect() as conn:
             stmt = select(change_portfolio_table).where(change_portfolio_table.c.id == project_id)
             project_data = conn.execute(stmt).fetchone() 
@@ -379,39 +450,35 @@ def project_detail_page():
         
         st.markdown("---")
 
-        # --- NEW: Create Tabs for Playbook and Diagnostic ---
-        tab_playbook, tab_diagnostic = st.tabs([
+        # --- TABS ARE UPDATED TO INCLUDE 'CHANGE HEALTH' ---
+        tab_playbook, tab_diagnostic, tab_health = st.tabs([
             "📖 Interactive Playbook", 
-            "🚀 Readiness Diagnostic"
+            "🚀 Readiness Diagnostic",
+            "📈 Change Health" # <-- NEW TAB
         ])
 
-        # --- Tab 1: Interactive Playbook (Your existing code) ---
+        # --- Tab 1: Interactive Playbook (unchanged) ---
         with tab_playbook:
             st.subheader("Interactive Change Playbook")
+            # ... (all your existing playbook code, no changes) ...
             try:
                 playbook_json = project_data.playbook_data
                 if playbook_json:
                     playbook_list = json.loads(playbook_json)
                 else:
                     playbook_list = [] 
-
                 playbook_df = pd.DataFrame(playbook_list)
-
                 edited_df = st.data_editor(
                     playbook_df,
                     column_config={
                         "Status": st.column_config.SelectboxColumn(
-                            "Status",
-                            options=["To Do", "In Progress", "Done"],
-                            required=True,
+                            "Status", options=["To Do", "In Progress", "Done"], required=True,
                         ),
                         "Category": st.column_config.TextColumn(width="medium"),
                         "Task": st.column_config.TextColumn(width="large"),
                     },
-                    hide_index=True,
-                    num_rows="dynamic"
+                    hide_index=True, num_rows="dynamic"
                 )
-
                 if st.button("Save Playbook Updates"):
                     updated_playbook_json = edited_df.to_json(orient="records")
                     with engine.connect() as conn:
@@ -422,93 +489,128 @@ def project_detail_page():
                         conn.commit()
                     st.success("Playbook updated successfully!")
                     st.rerun()
-
             except Exception as e:
                 st.error(f"Error loading playbook: {e}")
-                st.info("Note: Projects submitted before this feature was added may not have a playbook.")
 
-        # --- Tab 2: Readiness Diagnostic (NEW FEATURE) ---
+        # --- Tab 2: Readiness Diagnostic (unchanged) ---
         with tab_diagnostic:
             st.subheader("Behavioral Readiness Diagnostic (COM-B)")
-
-            # Logic Gate: Only show for Medium/Full support projects
+            # ... (all your existing readiness diagnostic code, no changes) ...
             if project_data.change_tier == "Light Support":
                 st.info("This project is 'Light Support'. A full behavioral diagnostic is not required.")
-                st.markdown("This tool is designed for Medium and Full Support projects where identifying specific behavioral barriers (Capability, Opportunity, Motivation) is critical.")
             else:
-                # Show saved plan first
                 if project_data.readiness_plan_html:
                     st.subheader("Saved Intervention Plan")
                     st.markdown(project_data.readiness_plan_html, unsafe_allow_html=True)
                     st.markdown("---")
-                    st.info("To generate a new plan, fill out the form below. Saving will overwrite the plan above.")
-
-                # The 10-Min Input Form
-                st.subheader("Generate New Intervention Plan")
                 
-                # Use a consistent list of departments
+                st.subheader("Generate New Intervention Plan")
                 dept_options = ["Frontline Clinical", "AOD Services", "Mental Health", "Corporate (HR/Finance)", "IT", "Leadership", "All Staff"]
-
                 with st.form("readiness_form"):
-                    low_groups = st.multiselect(
-                        "Which groups show low readiness? *", 
-                        options=dept_options
-                    )
-                    barrier = st.selectbox(
-                        "What is the primary *barrier* you observe? (COM-B) *", 
-                        options=[
-                            "Capability (They don't know how)", 
-                            "Opportunity (The system/process is the barrier)", 
-                            "Motivation (They don't want to / are cynical)"
-                        ]
-                    )
-                    rumor = st.text_area(
-                        "What is the main 'rumor' or 'story' you are hearing? *", 
-                        placeholder="e.g., 'This is just another cost-cutting exercise' or 'This will double our admin work.'"
-                    )
-                    
+                    low_groups = st.multiselect("Which groups show low readiness? *", options=dept_options)
+                    barrier = st.selectbox("What is the primary *barrier*? (COM-B) *", options=["Capability (They don't know how)", "Opportunity (The system/process is the barrier)", "Motivation (They don't want to / are cynical)"])
+                    rumor = st.text_area("What is the main 'rumor' or 'story'? *", placeholder="e.g., 'This is just another cost-cutting exercise'...")
                     submitted = st.form_submit_button("Generate Intervention Plan")
 
                 if submitted:
                     if not low_groups or not barrier or not rumor:
                         st.error("Please fill in all required fields (*).")
                     else:
-                        with st.spinner("🤖 Dr. Baker is diagnosing... Generating behavioral plan..."):
-                            report = ai_logic.run_readiness_diagnostic(
-                                project_name=project_data.project_name,
-                                low_readiness_groups=low_groups,
-                                barrier=barrier,
-                                rumor=rumor
-                            )
-                            # Save to session state to display it
+                        with st.spinner("🤖 Dr. Baker is diagnosing..."):
+                            report = ai_logic.run_readiness_diagnostic(project_name=project_data.project_name, low_readiness_groups=low_groups, barrier=barrier, rumor=rumor)
                             st.session_state[f'readiness_report_{project_id}'] = report
                 
-                # Display the generated report from session state
                 report_key = f'readiness_report_{project_id}'
                 if report_key in st.session_state:
                     st.markdown("---")
                     st.subheader("Generated AI Plan")
-                    
                     generated_report = st.session_state[report_key]
                     st.markdown(generated_report)
-                    
-                    # Add the "Save Plan" button
                     if st.button("Save This Plan to the Project"):
                         try:
                             with engine.connect() as conn:
-                                update_stmt = update(change_portfolio_table).where(
-                                    change_portfolio_table.c.id == project_id
-                                ).values(
-                                    readiness_plan_html=generated_report
-                                )
+                                update_stmt = update(change_portfolio_table).where(change_portfolio_table.c.id == project_id).values(readiness_plan_html=generated_report)
                                 conn.execute(update_stmt)
                                 conn.commit()
                             st.success("Intervention plan saved successfully!")
-                            # Clear the session state key after saving
                             del st.session_state[report_key]
                             st.rerun()
                         except Exception as e:
                             st.error(f"Failed to save plan: {e}")
+
+        # --- TAB 3: CHANGE HEALTH (NEW FEATURE) ---
+        with tab_health:
+            st.subheader("Project Health Dashboard")
+            st.markdown("Log and track the lead (PMO) and lag (ROI) indicators for this project over time.")
+
+            # --- Part A: Visualization ---
+            try:
+                df_health_full = pd.read_sql_table("health_snapshot", engine)
+                df_project_health = df_health_full[df_health_full['project_id'] == project_data.id].copy()
+
+                if df_project_health.empty:
+                    st.info("No health snapshots logged for this project yet. Use the form below to add one.")
+                else:
+                    # 1. Show Latest KPIs
+                    df_project_health['log_date'] = pd.to_datetime(df_project_health['log_date'])
+                    df_project_health = df_project_health.sort_values(by="log_date")
+                    latest_snapshot = df_project_health.iloc[-1]
+                    
+                    st.subheader("Latest Snapshot")
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("Adoption Rate", f"{latest_snapshot['adoption_rate_pct']}%")
+                    col2.metric("Readiness Score", f"{latest_snapshot['readiness_score']} / 5")
+                    col3.metric("Sentiment Score", f"{latest_snapshot['sentiment_score']} / 5")
+
+                    # 2. Show Line Chart (PMO View)
+                    st.subheader("Lead Indicators Over Time (PMO View)")
+                    df_chart_data = df_project_health.set_index('log_date')[['readiness_score', 'sentiment_score', 'manager_confidence']]
+                    st.line_chart(df_chart_data)
+
+            except Exception as e:
+                st.error(f"Error loading health data: {e}")
+
+            # --- Part B: Input Form ---
+            st.markdown("---")
+            st.subheader("Log New Health Snapshot")
+            with st.form("health_snapshot_form"):
+                log_date_input = st.date_input("Log Date", datetime.date.today())
+                
+                st.subheader("Lead Indicators (1-5 Scale)")
+                readiness = st.slider("Overall Readiness (1=Low, 5=High)", 1, 5, 3)
+                sentiment = st.slider("Staff Sentiment (1=Negative, 5=Positive)", 1, 5, 3)
+                manager = st.slider("Manager Confidence (1=Low, 5=High)", 1, 5, 3)
+                
+                st.subheader("Lag Indicators (ROI)")
+                adoption = st.number_input("Adoption Rate (%)", 0, 100, 0)
+                behavior = st.number_input("Behavior Adoption (%)", 0, 100, 0)
+                turnover = st.number_input("Staff Turnover (%) (This Period)", 0, 100, 0)
+                
+                notes = st.text_area("Notes", placeholder="e.g., 'Sentiment is low due to login bugs. Adoption is at 20% but rising.'")
+                
+                submitted = st.form_submit_button("Log Health Snapshot")
+
+                if submitted:
+                    try:
+                        new_snapshot = {
+                            "project_id": project_data.id,
+                            "log_date": str(log_date_input),
+                            "readiness_score": readiness,
+                            "sentiment_score": sentiment,
+                            "manager_confidence": manager,
+                            "adoption_rate_pct": adoption,
+                            "behavior_adoption_pct": behavior,
+                            "staff_turnover_pct": turnover,
+                            "notes": notes
+                        }
+                        with engine.connect() as conn:
+                            conn.execute(insert(health_snapshot_table).values(new_snapshot))
+                            conn.commit()
+                        st.success("Health snapshot logged successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error logging snapshot: {e}")
+
 
 
 # --- 4. The "My Workbench" Page (REBUILT for Idea #5 + AI Analyst) ---
@@ -865,6 +967,101 @@ def comms_campaign_page():
 
 
 
+
+
+# --- 7. The "Manager Co-pilot" Page (NEW) ---
+def manager_copilot_page():
+    st.title("🧑‍💼 Manager Co-pilot")
+    st.markdown("Your 'just-in-time' tool for handling tough, change-related conversations.")
+    st.markdown("---")
+
+    # Load project names for context
+    try:
+        df_projects = pd.read_sql_table("change_portfolio", engine)
+        project_names = ["Not project-specific"] + df_projects['project_name'].tolist()
+    except Exception as e:
+        st.error("Could not load projects. Defaulting to general topics.")
+        project_names = ["Not project-specific"]
+
+    # 1. Select the Tool
+    tool_choice = st.selectbox(
+        "What do you need help with?",
+        [
+            "Select a tool...",
+            "Supporting a Burned-Out Team Member",
+            "Having a Crucial Conversation",
+            "Handling Resistance (OARS Model)"
+        ]
+    )
+
+    # --- Add logic to clear old output when tool changes ---
+    if 'current_tool_choice' not in st.session_state:
+        st.session_state['current_tool_choice'] = tool_choice
+    
+    if st.session_state['current_tool_choice'] != tool_choice:
+        if 'manager_guide' in st.session_state:
+            del st.session_state['manager_guide']
+        st.session_state['current_tool_choice'] = tool_choice
+    # --- End of clearing logic ---
+
+    context = {}
+    run_button = False
+
+    # 2. Show Dynamic Form based on Tool Choice
+    if tool_choice == "Supporting a Burned-Out Team Member":
+        context["behavior"] = st.text_input(
+            "What behavior are you observing? *",
+            placeholder="e.g., 'They are quiet in meetings and missing small deadlines.'"
+        )
+        run_button = st.button("Generate Support Script")
+        
+    elif tool_choice == "Having a Crucial Conversation":
+        context["topic"] = st.text_input(
+            "What is the specific topic? *",
+            placeholder="e.g., 'Not following the new process' or 'Negative attitude in team meetings'"
+        )
+        context["emotion"] = st.text_input(
+            "How is the employee likely feeling? *",
+            placeholder="e.g., 'Anxious' or 'Angry' or 'Defensive'"
+        )
+        run_button = st.button("Generate Conversation Starter")
+
+    elif tool_choice == "Handling Resistance (OARS Model)":
+        context["project_name"] = st.selectbox(
+            "Which project are they resisting? *",
+            options=project_names
+        )
+        context["resistance_statement"] = st.text_area(
+            "What are they saying? *",
+            placeholder="e.g., 'This is just a waste of time, the old way was faster.' or 'Why do we have to change again?'"
+        )
+        run_button = st.button("Generate OARS Guide & Script")
+
+    # 3. Run AI and display output
+    if run_button:
+        # Simple validation
+        if not all(context.values()):
+            st.error("Please fill in all the fields for this tool.")
+        else:
+            with st.spinner("🤖 Co-pilot is generating your guide..."):
+                generated_guide = ai_logic.run_manager_copilot(tool_choice, context)
+                st.session_state['manager_guide'] = generated_guide
+    
+    if 'manager_guide' in st.session_state and tool_choice != "Select a tool...":
+        st.markdown("---")
+        st.subheader("Your AI-Generated Guide & Script")
+        st.markdown(st.session_state['manager_guide'])
+        st.info("You can copy this text, adapt it to your own voice, and use it in your next conversation.")
+
+# --- END NEW FUNCTION ---
+
+
+
+
+
+
+
+
 # --- Main App Router (Sidebar) ---
 st.sidebar.title("Navigation")
 # --- UPDATED LIST ---
@@ -873,7 +1070,8 @@ page = st.sidebar.radio("Go to:", [
     "PMO Dashboard", 
     "Project Details",
     "Champion Network",
-    "📣 Comms Campaign Director", # <--- NEW
+    "📣 Comms Campaign Director",
+    "🧑‍💼 Manager Co-pilot", 
     "Project Intake Form"
 ])
 
@@ -887,7 +1085,9 @@ elif page == "My Workbench":
     my_workbench_page()
 elif page == "Champion Network":
     champion_network_page()
-# --- NEW PAGE ROUTE ---
 elif page == "📣 Comms Campaign Director":
     comms_campaign_page()
+# --- NEW PAGE ROUTE ---
+elif page == "🧑‍💼 Manager Co-pilot":
+    manager_copilot_page()
 # --- END NEW PAGE ---
