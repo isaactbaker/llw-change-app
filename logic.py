@@ -1,129 +1,171 @@
 # logic.py
 import json
 
-# 1. Scoring Logic (This is unchanged)
-SCORING_MODEL = {
-    "change_type": {"Restructure": 5, "New IT System": 4, "AI Bot": 4, "Process Tweak": 2, "Comms Only": 1},
-    "scale": {"250+ people": 3, "50-250 people": 2, "1-50 people": 1},
-    "impact_depth": {"A lot of new skills": 4, "A few new steps": 2, "New login only": 1},
-    "change_history": {"Failed before": 3, "First time": 1, "Succeeded before": 0}
+# 1. Configuration Data (The "Brain")
+
+# Budget estimations per head (simplified for demo)
+COST_PER_HEAD = {
+    "Global Executive": 5000, # High touch, external vendors
+    "Senior Leader": 2500,
+    "People Leader": 1000,
+    "Technical Specialist": 2000, # Technical bootcamps
+    "General Workforce": 100 # Scalable licensing
 }
 
-# --- NEW CONSTANT FOR IDEA #3 ---
-# Defines the estimated "effort points" per project tier.
-# This is for the capacity dashboard.
-EFFORT_MAP = {
-    "Light Support": 10,
-    "Medium Support": 40,
-    "Full Support": 100
+# The Logic Matrix: Mapping Audience + Maturity to a Pathway
+# This mimics the "Curation" role of the job description
+PATHWAY_LOGIC = {
+    "Global Executive": {
+        "Skeptic": "The AI Visionary Program",
+        "Observer": "The AI Visionary Program",
+        "Experimenter": "Strategic AI Governance",
+        "Adopter": "Leading Disruption"
+    },
+    "Senior Leader": {
+        "Skeptic": "Leading through Uncertainty",
+        "Observer": "AI Strategy Fundamentals",
+        "Experimenter": "Operational AI Scaling",
+        "Adopter": "Transformational Leadership"
+    },
+    "People Leader": {
+        "all": "Managing AI-Augmented Teams" # Default for mid-level
+    },
+    "Technical Specialist": {
+        "all": "The AI Builder Bootcamp" # Technical focus
+    },
+    "General Workforce": {
+        "Skeptic": "The Resilient Human (Soft Skills)",
+        "Observer": "AI Literacy 101",
+        "Experimenter": "Everyday Innovator (Prompting)",
+        "Adopter": "Process Automation Masterclass"
+    }
 }
-# --- END NEW CONSTANT ---
 
-# --- NEW CONSTANT FOR IDEA #4 ---
-# This is the new structured data for the interactive playbooks.
-# We will save this to the DB as a JSON string.
-PLAYBOOK_TEMPLATES = {
-    "Light Support": [
-        {"Category": "Comms", "Task": "Draft 'Change-on-a-Page'", "Status": "To Do"},
-        {"Category": "Comms", "Task": "Identify Key Audience", "Status": "To Do"},
-        {"Category": "Comms", "Task": "Define Key Message (WIIFM)", "Status": "To Do"},
-        {"Category": "Comms", "Task": "Select Channel & Timing", "Status": "To Do"},
-        {"Category": "Comms", "Task": "Send Communication", "Status": "To Do"}
-    ],
-    "Medium Support": [
-        {"Category": "ADKAR", "Task": "Build Awareness (Comms)", "Status": "To Do"},
-        {"Category": "ADKAR", "Task": "Build Desire (WIIFM)", "Status": "To Do"},
-        {"Category": "ADKAR", "Task": "Deliver Knowledge (Training)", "Status": "To Do"},
-        {"Category": "ADKAR", "Task": "Develop Ability (Practice)", "Status": "To Do"},
-        {"Category": "ADKAR", "Task": "Reinforce (Celebrate)", "Status": "To Do"}
-    ],
-    "Full Support": [
-        {"Category": "Sponsor", "Task": "Send the 'Vision' email", "Status": "To Do"},
-        {"Category": "Sponsor", "Task": "Attend project kick-off", "Status": "To Do"},
-        {"Category": "Sponsor", "Task": "Run 'Crucial Conversations' session", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Complete Stakeholder Map", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Complete ADKAR Assessment", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Establish Change Champion Network", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Draft Comms & Engagement Plan", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Draft Training & Support Plan", "Status": "To Do"},
-        {"Category": "Toolkit", "Task": "Draft Resistance Management Plan", "Status": "To Do"}
-    ]
-}
-# --- END NEW CONSTANT ---
-
-# 2. Toolkit Content (NEW, UPGRADED VERSION)
-TOOLKITS = {
-    "Light Support": """
-    ### TIER 1: LIGHT SUPPORT
-    This project primarily requires clear and consistent communication.
+# Detailed Program Descriptions (The "Curated Resources")
+LEARNING_PATHWAYS = {
+    "The AI Visionary Program": """
+    ### 🚀 Recommended Pathway: The AI Visionary Program
+    **Target Audience:** Executives & Skeptics
+    **Goal:** Shift mindset from "Risk Aversion" to "Strategic Opportunity."
     
-    **Your 'Change-on-a-Page' Template:**
-    * **Project Goal:** (What is the 1-sentence goal?)
-    * **Audience:** (Who needs to know?)
-    * **Key Message (WIIFM):** (What's in it for them? Why should they care?)
-    * **Channel:** (How will you tell them? e.g., Email, Team Meeting)
-    * **Timing:** (When?)
+    **Curated Vendor Strategy:**
+    * **Primary:** External Thought Leader (e.g., Gartner/Forrester briefing).
+    * **Format:** 1-Day Executive Offsite.
+    
+    **Key Modules:**
+    1.  **AI Economics:** How AI shifts the P&L of Insurance.
+    2.  **The Ethical Leader:** Navigating bias and trust in automated claims.
+    3.  **Strategic Forecasting:** 5-year horizon scanning.
     """,
-    "Medium Support": """
-    ### TIER 2: MEDIUM SUPPORT
-    This project requires structured change management. We will use an **ADKAR-based** approach (which Ben is an expert in).
     
-    **Your 'ADKAR Plan' Template:**
-    * **Awareness:** How will you build awareness of the *need* for this change?
-    * **Desire:** How will you address 'What's in it for me?' (WIIFM) to build motivation?
-    * **Knowledge:** What training is needed? How will people learn *how* to do it?
-    * **Ability:** How will you provide practice, support, and time to build new skills?
-    * **Reinforcement:** How will you celebrate success and make the change stick?
+    "The Resilient Human (Soft Skills)": """
+    ### 🧠 Recommended Pathway: The Resilient Human
+    **Target Audience:** General Workforce (Skeptics/Anxious)
+    **Goal:** Build psychological safety and emphasize human value in the loop.
+    
+    **Curated Vendor Strategy:**
+    * **Primary:** Internal L&D + Psychology Vendor (e.g., NeuroLeadership Inst).
+    * **Format:** Workshop Series + Coaching Circles.
+    
+    **Key Modules:**
+    1.  **Thriving in Ambiguity:** Managing change fatigue.
+    2.  **Critical Thinking:** Why AI needs a human auditor.
+    3.  **Empathy & Ethics:** Skills AI cannot replace.
     """,
-    "Full Support": """
-    ### TIER 3: FULL SUPPORT
-    This is a high-impact, high-risk project. I (Dr. Baker) will contact you for a full discovery and planning session.
     
-    **Your #1 priority is Sponsor Alignment.** A project of this scale will fail without an active, visible sponsor.
+    "The AI Builder Bootcamp": """
+    ### 🛠️ Recommended Pathway: The AI Builder Bootcamp
+    **Target Audience:** Technical Specialists
+    **Goal:** Rapid upskilling in LLM Ops and Secure Architecture.
     
-    **Sponsor Action Checklist (For your Exec Sponsor):**
-    * [ ] 1. Send the "Vision" email (we will draft this) to all impacted staff.
-    * [ ] 2. Attend the project kick-off and *personally* state why this is important.
-    * [ ] 3. Allocate 1 hour/month for a "Crucial Conversations" session to address resistance.
+    **Curated Vendor Strategy:**
+    * **Primary:** Microsoft / Tech Vendor.
+    * **Format:** 5-Day Hackathon + Certification.
     
-    **Your Toolkit Checklist:**
-    * [ ] 1. Stakeholder Map & ADKAR Assessment
-    * [ ] 2. Change Champion Network Plan
-    * [ ] 3. Detailed Comms & Engagement Plan
-    * [ ] 4. Training & Support Plan
-    * [ ] 5. Feedback & Resistance Management Plan
+    **Key Modules:**
+    1.  **Secure AI Architecture:** Privacy by design in QBE systems.
+    2.  **Advanced RAG:** Retrieval Augmented Generation.
+    3.  **Copilot Extensions:** Building custom plugins.
+    """,
+    
+    "Everyday Innovator (Prompting)": """
+    ### 💡 Recommended Pathway: The Everyday Innovator
+    **Target Audience:** General Workforce (Experimenters)
+    **Goal:** Productivity gains and grassroots innovation.
+    
+    **Curated Vendor Strategy:**
+    * **Primary:** Scalable Learning Platform (LinkedIn Learning / Udemy).
+    * **Format:** Self-Paced + "Lunch & Learn" Showcases.
+    
+    **Key Modules:**
+    1.  **Prompt Engineering 101:** Getting better answers.
+    2.  **Automating the Mundane:** freeing up time for high-value work.
+    3.  **Data Privacy:** What NOT to put in the prompt.
     """
 }
 
-# 3. Triage Function (UPDATED for Idea #3)
-def calculate_triage(form_data: dict) -> dict:
-    """Calculates score, tier, and effort from form data."""
-    score = 0
-    score += SCORING_MODEL["change_type"].get(form_data["change_type"], 0)
-    score += SCORING_MODEL["scale"].get(form_data["scale"], 0)
-    score += SCORING_MODEL["impact_depth"].get(form_data["impact_depth"], 0)
-    score += SCORING_MODEL["change_history"].get(form_data["change_history"], 0)
+# Default fallback for pathways not explicitly defined above
+DEFAULT_PATHWAY = """
+### 📈 Recommended Pathway: QBE AI Core Skills
+**Goal:** foundational literacy and alignment with QBE AI Strategy.
+**Vendor:** Internal Digital Academy.
+"""
 
-    tier = "Light Support"
-    if score >= 11:
-        tier = "Full Support"
-    elif score >= 6:
-        tier = "Medium Support"
-
-# --- NEW LOGIC FOR IDEA #3 ---
-    effort = EFFORT_MAP.get(tier, 0)
+def curate_pathway(form_data: dict) -> dict:
+    """
+    The 'Intelligence Engine' that maps inputs to a recommended strategy.
+    """
+    audience = form_data["audience_level"]
+    maturity = form_data["current_maturity"]
+    cohort_size_str = form_data["cohort_size"] # e.g. "1-20"
     
-    # --- NEW LOGIC FOR IDEA #4 ---
-    # Get the correct playbook template from our new constant
-    playbook_template = PLAYBOOK_TEMPLATES.get(tier, [])
-    # Convert the Python list of dicts into a JSON string
-    playbook_json_string = json.dumps(playbook_template)
-    # --- END NEW LOGIC ---
+    # 1. Determine Pathway Name
+    # Check specialized logic first, else fall back
+    if audience in PATHWAY_LOGIC:
+        # If the audience dict has specific maturity keys (like Execs)
+        if isinstance(PATHWAY_LOGIC[audience], dict):
+            program_name = PATHWAY_LOGIC[audience].get(maturity, "QBE AI Core Skills")
+        else:
+            # If it's a flat string (like Technical Specialist) - handle "all" key
+            program_name = PATHWAY_LOGIC[audience].get("all", "QBE AI Core Skills")
+    else:
+        program_name = "QBE AI Core Skills"
 
-    # Add all new keys to the returned dictionary
+    # 2. Get Description
+    program_description = LEARNING_PATHWAYS.get(program_name, DEFAULT_PATHWAY)
+    
+    # 3. Identify Vendor (Simple extraction for the DB field)
+    # In a real app, this would be a separate lookup
+    if "Visionary" in program_name:
+        vendor = "Gartner / External"
+    elif "Builder" in program_name:
+        vendor = "Microsoft / Tech"
+    elif "Resilient" in program_name:
+        vendor = "Internal L&D / Psych"
+    else:
+        vendor = "Internal / Platform"
+
+    # 4. Calculate Urgency Score (0-100)
+    # Higher seniority + Lower Maturity = Higher Urgency/Risk
+    urgency = 50 # Base
+    if "Exec" in audience or "Senior" in audience:
+        urgency += 30
+    if maturity == "Skeptic" or maturity == "Observer":
+        urgency += 20
+    
+    # 5. Estimate Budget
+    # Parse size string to an average integer
+    if "1-20" in cohort_size_str: count = 15
+    elif "20-100" in cohort_size_str: count = 60
+    else: count = 150
+    
+    cost_basis = COST_PER_HEAD.get(audience, 100)
+    budget = count * cost_basis
+
     return {
-        "impact_score": score, 
-        "change_tier": tier, 
-        "effort_score": effort,
-        "playbook_data": playbook_json_string # <--- This is the new key
+        "urgency_score": urgency,
+        "recommended_pathway": program_name,
+        "recommended_vendor": vendor,
+        "program_description": program_description,
+        "estimated_budget": budget
     }
