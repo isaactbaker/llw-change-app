@@ -121,7 +121,7 @@ def intake_form_page():
                 **form_data,
                 "urgency_score": result['urgency_score'],
                 "recommended_pathway": result['recommended_pathway'],
-                "recommended_vendor": final_vendor,
+                "recommended_vendor": result['recommended_vendor'], 
                 "estimated_budget": result['estimated_budget'],
                 "baseline_behavior_score": baseline,
                 "target_behavior_score": target,
