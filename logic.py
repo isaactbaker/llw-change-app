@@ -12,6 +12,26 @@ COST_PER_HEAD = {
     "General Workforce": 100 # Scalable licensing
 }
 
+
+
+# NEW: Mapping QBE Regions to ISO Country Codes for the Heatmap
+REGION_ISO_MAP = {
+    "AUSPAC": ["AUS", "NZL"],
+    "North America": ["USA", "CAN"],
+    "Europe": ["GBR", "FRA", "DEU", "ITA", "ESP"],
+    "EO (Equal Opportunities)": ["PHL", "IND"], 
+    "Global": [] 
+}
+
+# NEW: Default Vendors (Pre-seeding)
+DEFAULT_VENDORS = [
+    {"vendor_name": "Gartner", "specialty": "Strategy", "avg_daily_rate": 5000, "performance_rating": 5},
+    {"vendor_name": "Microsoft", "specialty": "Technical", "avg_daily_rate": 3500, "performance_rating": 4},
+    {"vendor_name": "Internal L&D", "specialty": "Soft Skills", "avg_daily_rate": 500, "performance_rating": 3},
+    {"vendor_name": "LinkedIn Learning", "specialty": "General", "avg_daily_rate": 50, "performance_rating": 4},
+    {"vendor_name": "NeuroLeadership Inst", "specialty": "Culture", "avg_daily_rate": 4000, "performance_rating": 5}
+]
+
 # The Logic Matrix: Mapping Audience + Maturity to a Pathway
 # This mimics the "Curation" role of the job description
 PATHWAY_LOGIC = {
@@ -111,6 +131,19 @@ DEFAULT_PATHWAY = """
 **Vendor:** Internal Digital Academy.
 """
 
+
+# NEW: Gap Calculation Helper
+def calculate_behavioural_gap(baseline, target):
+    """Returns the 'Gap Size' and a strategic tag."""
+    delta = target - baseline
+    if delta >= 5:
+        return delta, "CRITICAL SHIFT (Transformation Required)"
+    elif delta >= 3:
+        return delta, "SIGNIFICANT SHIFT (Coaching Required)"
+    else:
+        return delta, "INCREMENTAL SHIFT (Upskilling Required)"
+    
+    
 def curate_pathway(form_data: dict) -> dict:
     """
     The 'Intelligence Engine' that maps inputs to a recommended strategy.
