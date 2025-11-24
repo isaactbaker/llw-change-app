@@ -157,7 +157,24 @@ Provide a sample script I can use that includes an example of each OARS componen
 """
 # --- END NEW PROMPTS ---
 
+# --- NEW PROMPT FOR COMPLIANCE BRIEF (1.3) ---
+PROMPT_COMPLIANCE_BRIEF = """
+You are a Group Legal and Risk consultant at QBE.
+Your task is to generate a concise "Compliance & Ethical Risk Brief" for a new AI learning program.
 
+Context of the Program:
+- Region: {region}
+- Department: {department}
+- Program Focus: {program_focus}
+- Selected Vendor: {vendor_name}
+
+Your brief MUST be formatted in professional Markdown and include:
+1.  **Top 3 Regulatory Risks:** Based on the Region and Department (e.g., automated decision bias in Claims, data localization laws in Europe), identify the 3 highest regulatory/ethical risks.
+2.  **Compliance Guardrail:** Provide 1 mandatory, non-negotiable instruction for the content owner related to PII/data handling or ethical disclosure.
+3.  **QBE Principle Focus:** Recommend the 2 QBE AI Principles that must be most heavily emphasized in the content.
+
+Do not exceed 300 words.
+"""
 
 # 3. API-Calling Functions
 
@@ -288,3 +305,15 @@ def run_manager_copilot(tool_choice: str, context: dict) -> str:
 
     return call_ai_analysis(prompt_template, payload, system_prompt)
 # --- END NEW FUNCTION ---
+
+
+def run_compliance_brief_generator(region: str, department: str, program_focus: str, vendor_name: str) -> str:
+    """Generates the 1-page compliance and risk brief."""
+    system_prompt = "You are a Group Legal and Risk consultant at QBE, specializing in AI governance."
+    payload = {
+        "region": region,
+        "department": department,
+        "program_focus": program_focus,
+        "vendor_name": vendor_name
+    }
+    return call_ai_analysis(PROMPT_COMPLIANCE_BRIEF, payload, system_prompt)
