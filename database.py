@@ -26,6 +26,9 @@ capability_assessments_table = sqlalchemy.Table(
     # NEW: Behavioural Delta Fields
     sqlalchemy.Column("baseline_behavior_score", sqlalchemy.Integer),
     sqlalchemy.Column("target_behavior_score", sqlalchemy.Integer),
+
+    # NEW FIELD FOR GOVERNANCE ASSURANCE (1.1)
+    sqlalchemy.Column("governance_checklist_status", sqlalchemy.String, default="Incomplete"), # Stores the final status
     
     # NEW: Vendor Linkage
     sqlalchemy.Column("selected_vendor", sqlalchemy.String),      # <--- CHECK 1
@@ -41,7 +44,7 @@ capability_assessments_table = sqlalchemy.Table(
     sqlalchemy.Column("submission_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
 )
 
-# 2. Vendor Registry
+# 2. Vendor Registry (ADD Compliance/Residency Fields)
 vendor_registry_table = sqlalchemy.Table(
     "vendor_registry",
     metadata,
@@ -50,6 +53,11 @@ vendor_registry_table = sqlalchemy.Table(
     sqlalchemy.Column("specialty", sqlalchemy.String),
     sqlalchemy.Column("avg_daily_rate", sqlalchemy.Integer),
     sqlalchemy.Column("performance_rating", sqlalchemy.Integer), 
+    
+    # NEW FIELDS FOR GOVERNANCE ASSURANCE (1.2)
+    sqlalchemy.Column("compliance_rating", sqlalchemy.String), # e.g., Green, Yellow, Red
+    sqlalchemy.Column("data_residency_cert", sqlalchemy.String), # e.g., EU-GDPR, AUS-Privacy, None
+    
     sqlalchemy.Column("status", sqlalchemy.String, default="Active")
 )
 
