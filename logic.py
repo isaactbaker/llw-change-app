@@ -13,15 +13,7 @@ COST_PER_HEAD = {
 }
 
 # --- NEW CONFIGURATION DATA ---
-# QBE AI PRINCIPLES (1.1)
-QBE_AI_PRINCIPLES = [
-    "Fairness (Prevent Bias/Discrimination)",
-    "Privacy (Data Safeguarding)",
-    "Transparency (Disclosure of AI Use)",
-    "Explainability (Intelligibility of Outcomes)",
-    "Accountability (Human Oversight)",
-    "Benefit & Safety (Prevent Harm)"
-]
+
 
 # NEW: Mapping QBE Regions to ISO Country Codes for the Heatmap
 REGION_ISO_MAP = {
