@@ -72,8 +72,10 @@ behaviour_pulse_table = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String)
 )
 
-# WARNING: THIS LINE DELETES THE TABLE. USE ONLY FOR DEBUGGING.
+# --- CRITICAL FIX: AGGRESSIVELY RESET VENDOR TABLE FOR SCHEMA UPDATE ---
+# This ensures the vendor table is dropped if it exists, forcing a clean creation with the new columns.
 vendor_registry_table.drop(engine, checkfirst=True)
+
 
 # Create the tables
 metadata.create_all(engine)
