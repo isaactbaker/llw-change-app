@@ -8,7 +8,7 @@ import logic
 
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table
-from logic import curate_pathway, calculate_behavioural_gap, QBE_AI_PRINCIPLES, check_compliance_risk 
+from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk 
 from ai_logic import run_compliance_brief_generator # Import new AI function
 
 
@@ -18,6 +18,18 @@ st.set_page_config(
     page_icon="🚀",
     layout="wide"
 )
+
+# --- GLOBAL CONFIGURATION DATA (EMBEDDED PRINCIPLES) ---
+# This list is needed to populate the Governance Checklist UI.
+QBE_AI_PRINCIPLES = [
+    "Fairness (Prevent Bias/Discrimination)",
+    "Privacy (Data Safeguarding)",
+    "Transparency (Disclosure of AI Use)",
+    "Explainability (Intelligibility of Outcomes)",
+    "Accountability (Human Oversight)",
+    "Benefit & Safety (Prevent Harm)"
+]
+
 
 # --- Helper: Seed Vendors if Empty ---
 def seed_vendors():
