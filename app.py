@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sqlalchemy.sql import insert, select
 import logic 
+import database  # Simply import it right after the core utility imports
+
 
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table
