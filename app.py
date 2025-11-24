@@ -8,7 +8,9 @@ import logic
 
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table
-from logic import curate_pathway, calculate_behavioural_gap
+from logic import curate_pathway, calculate_behavioural_gap, QBE_AI_PRINCIPLES, check_compliance_risk 
+from ai_logic import run_compliance_brief_generator # Import new AI function
+
 
 # --- App Configuration ---
 st.set_page_config(
@@ -36,6 +38,10 @@ def intake_form_page():
     Use this form to assess a cohort's needs, identify behavioural gaps, and generate a recommended learning pathway.
     """)
 
+    # Use a session state dictionary to store current form inputs for the independent button handler
+    # This prevents the brief generator from crashing when trying to access form inputs outside the form block
+    current_inputs = {}
+
     with st.form(key="assessment_form"):
         st.subheader("1. Cohort Profile")
         col1, col2 = st.columns(2)
@@ -54,7 +60,7 @@ def intake_form_page():
         col1, col2 = st.columns(2)
         
         current_maturity = col1.selectbox("Current AI Maturity", 
-                                          ["Skeptic (Resistant)", "Observer (Passive)", "Experimenter (Ad-hoc)", "Adopter (Scaling)", "Leader (Pioneering)"])
+                                             ["Skeptic (Resistant)", "Observer (Passive)", "Experimenter (Ad-hoc)", "Adopter (Scaling)", "Leader (Pioneering)"])
         
         primary_behavioural_gap = col2.selectbox("Primary Behavioural Shift Required *", 
                                                  [
@@ -88,10 +94,63 @@ def intake_form_page():
         if gap_val > 0:
             st.caption(f"Projected Shift: +{gap_val} points")
 
+        # --- New Section for Governance Assurance (4. 🛡️ AI Governance Assurance Gate) ---
         st.markdown("---")
+        st.subheader("4. 🛡️ AI Governance Assurance Gate")
+        
+        # 1.1: Governance Policy Checklist
+        st.caption("Mandatory Vetting: Confirm adherence to QBE's AI Governance Policy before launch.")
+        selected_principles = st.multiselect("1. AI Principle Alignment (Select all relevant):", QBE_AI_PRINCIPLES, default=QBE_AI_PRINCIPLES[:2])
+        
+        # Simulating a basic required checklist (1.1)
+        col_v1, col_v2 = st.columns(2)
+        content_vetted = col_v1.checkbox("2. Content screened for bias/misleading claims?", value=False)
+        security_protocol = col_v2.checkbox("3. Data Security Protocol confirmed for region?", value=False)
+        
+        # Check status for saving
+        governance_status = "Complete" if content_vetted and security_protocol and len(selected_principles) > 0 else "Incomplete"
+        if governance_status == "Complete":
+            st.success("Governance Checklist Status: Complete. Program is viable.")
+        else:
+            st.warning("Governance Checklist Status: Incomplete. Review required.")
+        
+        st.markdown("---")
+
+        # Save current inputs to session state for the independent AI button
+        current_inputs = {
+            "region": region,
+            "department": department,
+            "learning_need_focus": learning_need_focus,
+            "selected_vendor": selected_vendor
+        }
+        st.session_state['current_form_inputs'] = current_inputs
+        st.session_state['governance_status'] = governance_status
+        
         submitted = st.form_submit_button("Analyze & Generate Pathway")
+        
+    # --- Handler for the independent AI Brief Button (OUTSIDE THE FORM) ---
+    # This button uses the saved state to run the AI without forcing a form submit.
+    if st.button("Generate Ethical Risk Brief (AI Tool)"):
+        inputs = st.session_state.get('current_form_inputs', {})
+        if inputs:
+            with st.spinner("Generating brief for Legal & Risk..."):
+                brief = run_compliance_brief_generator(
+                    region=inputs['region'], 
+                    department=inputs['department'], 
+                    program_focus=inputs['learning_need_focus'], 
+                    vendor_name=inputs['selected_vendor']
+                )
+                st.session_state['brief_output'] = brief
+                st.session_state['brief_run_status'] = 'ready'
+                st.rerun() 
+        else:
+            st.error("Please fill out the form before generating the brief.")
+
 
     if submitted:
+        # Use the stored governance status from the form submission state
+        final_governance_status = st.session_state.get('governance_status', 'Incomplete')
+        
         if not cohort_name:
             st.error("Please enter a Cohort Name.")
         else:
@@ -110,8 +169,12 @@ def intake_form_page():
             # 2. Run Logic
             result = curate_pathway(form_data)
             
-            # Calculate final vendor
+            # Calculate final vendor and compliance risk check (1.2)
             final_vendor = result['recommended_vendor'] if selected_vendor == "Auto-Assign" else selected_vendor
+            compliance_risk = check_compliance_risk(region, final_vendor) # NEW RISK CHECK
+
+            if compliance_risk: # Display the flag (1.2)
+                st.error(f"GOVERNANCE RISK WARNING: {compliance_risk}")
             
             # Calculate Gap Tag
             _, gap_tag = calculate_behavioural_gap(baseline, target)
@@ -121,7 +184,8 @@ def intake_form_page():
                 **form_data,
                 "urgency_score": result['urgency_score'],
                 "recommended_pathway": result['recommended_pathway'],
-                "recommended_vendor": result['recommended_vendor'], 
+                "governance_checklist_status": final_governance_status, # NEW FIELD
+                "recommended_vendor": result['recommended_vendor'],  
                 "estimated_budget": result['estimated_budget'],
                 "baseline_behavior_score": baseline,
                 "target_behavior_score": target,
@@ -145,6 +209,15 @@ def intake_form_page():
             
             st.info(f"**Gap Analysis:** {target-baseline} point delta. **{gap_tag}**")
             st.progress(baseline/10)
+
+    # --- Display Generated Brief (Below the main form logic) ---
+    if st.session_state.get('brief_run_status') == 'ready':
+         st.subheader("📄 Ethical Risk Brief Output")
+         st.markdown(st.session_state['brief_output'])
+         
+         # Reset run status after displaying
+         st.session_state['brief_run_status'] = 'displayed'
+         st.session_state['brief_output'] = st.session_state['brief_output'] # Keep output for rerun stability
 
 
 # --- 2. The Global Strategy Dashboard ---
@@ -234,13 +307,24 @@ def strategy_dashboard_page():
 
     # --- Row 4: Data ---
     st.subheader("Cohort Registry")
-    st.dataframe(df[['cohort_name', 'region', 'audience_level', 'recommended_pathway', 'baseline_behavior_score', 'target_behavior_score']], use_container_width=True)
+    st.dataframe(df[['cohort_name', 'region', 'audience_level', 'recommended_pathway', 'baseline_behavior_score', 'target_behavior_score', 'governance_checklist_status']], use_container_width=True)
 
 # --- Main App Router ---
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to:", ["Capability Assessment", "Strategy Dashboard"])
 
 if page == "Capability Assessment":
+    # Initialize session state for brief output control
+    if 'brief_output' not in st.session_state:
+        st.session_state['brief_output'] = None
+    if 'brief_run_status' not in st.session_state:
+        st.session_state['brief_run_status'] = 'initial'
+    if 'current_form_inputs' not in st.session_state:
+        st.session_state['current_form_inputs'] = {}
+        
     intake_form_page()
 else:
+    # Clear brief state when switching tabs
+    st.session_state['brief_output'] = None
+    st.session_state['brief_run_status'] = 'initial'
     strategy_dashboard_page()
