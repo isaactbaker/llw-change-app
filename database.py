@@ -72,5 +72,8 @@ behaviour_pulse_table = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String)
 )
 
+# WARNING: THIS LINE DELETES THE TABLE. USE ONLY FOR DEBUGGING.
+vendor_registry_table.drop(engine, checkfirst=True)
+
 # Create the tables
 metadata.create_all(engine)
