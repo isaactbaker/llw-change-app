@@ -12,7 +12,16 @@ COST_PER_HEAD = {
     "General Workforce": 100 # Scalable licensing
 }
 
-
+# --- NEW CONFIGURATION DATA ---
+# QBE AI PRINCIPLES (1.1)
+QBE_AI_PRINCIPLES = [
+    "Fairness (Prevent Bias/Discrimination)",
+    "Privacy (Data Safeguarding)",
+    "Transparency (Disclosure of AI Use)",
+    "Explainability (Intelligibility of Outcomes)",
+    "Accountability (Human Oversight)",
+    "Benefit & Safety (Prevent Harm)"
+]
 
 # NEW: Mapping QBE Regions to ISO Country Codes for the Heatmap
 REGION_ISO_MAP = {
@@ -25,11 +34,12 @@ REGION_ISO_MAP = {
 
 # NEW: Default Vendors (Pre-seeding)
 DEFAULT_VENDORS = [
-    {"vendor_name": "Gartner", "specialty": "Strategy", "avg_daily_rate": 5000, "performance_rating": 5},
-    {"vendor_name": "Microsoft", "specialty": "Technical", "avg_daily_rate": 3500, "performance_rating": 4},
-    {"vendor_name": "Internal L&D", "specialty": "Soft Skills", "avg_daily_rate": 500, "performance_rating": 3},
-    {"vendor_name": "LinkedIn Learning", "specialty": "General", "avg_daily_rate": 50, "performance_rating": 4},
-    {"vendor_name": "NeuroLeadership Inst", "specialty": "Culture", "avg_daily_rate": 4000, "performance_rating": 5}
+    # ADDED compliance_rating & data_residency_cert fields
+    {"vendor_name": "Gartner", "specialty": "Strategy", "avg_daily_rate": 5000, "performance_rating": 5, "compliance_rating": "Green", "data_residency_cert": "Global"},
+    {"vendor_name": "Microsoft", "specialty": "Technical", "avg_daily_rate": 3500, "performance_rating": 4, "compliance_rating": "Green", "data_residency_cert": "EU-GDPR"},
+    {"vendor_name": "Internal L&D", "specialty": "Soft Skills", "avg_daily_rate": 500, "performance_rating": 3, "compliance_rating": "Green", "data_residency_cert": "Internal"},
+    {"vendor_name": "LinkedIn Learning", "specialty": "General", "avg_daily_rate": 50, "performance_rating": 4, "compliance_rating": "Yellow", "data_residency_cert": "None"},
+    {"vendor_name": "NeuroLeadership Inst", "specialty": "Culture", "avg_daily_rate": 4000, "performance_rating": 5, "compliance_rating": "Green", "data_residency_cert": "AUS-Privacy"},
 ]
 
 # The Logic Matrix: Mapping Audience + Maturity to a Pathway
@@ -143,7 +153,37 @@ def calculate_behavioural_gap(baseline, target):
     else:
         return delta, "INCREMENTAL SHIFT (Upskilling Required)"
     
-    
+
+
+# --- NEW LOGIC FUNCTION (1.2) ---
+def check_compliance_risk(region: str, vendor_name: str) -> bool:
+    """Checks if the vendor is compliant for the target region."""
+    import pandas as pd
+    from database import engine
+
+    try:
+        vendor_df = pd.read_sql_table("vendor_registry", engine)
+        vendor_row = vendor_df[vendor_df['vendor_name'] == vendor_name].iloc[0]
+        
+        vendor_cert = vendor_row['data_residency_cert']
+        compliance_rating = vendor_row['compliance_rating']
+        
+        if compliance_rating == "Red":
+            return "Major Risk: Vendor is flagged as high-risk."
+        
+        # Simple Logic for Demonstration (Must refine in real-world)
+        if region == "Europe" and "GDPR" not in vendor_cert:
+            return "RISK: European program using non-GDPR certified vendor."
+        
+        if region == "AUSPAC" and "Privacy" not in vendor_cert and vendor_cert != "Internal":
+            return "RISK: AUSPAC program using vendor without local privacy certification."
+
+        return None # No specific risk found
+
+    except:
+        return None # Default to no risk if DB fails
+
+
 def curate_pathway(form_data: dict) -> dict:
     """
     The 'Intelligence Engine' that maps inputs to a recommended strategy.
