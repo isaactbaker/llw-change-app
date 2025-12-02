@@ -11,8 +11,7 @@ import database
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table, individual_diagnostics_table
 from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk, SWP_WORKSTREAMS, EXECUTION_STATUSES, calculate_execution_score
-
-from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator, run_status_anchor_dialogue
+from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator, run_status_anchor_dialogue # NEW IMPORT
 
 # --- App Configuration ---
 st.set_page_config(
@@ -50,7 +49,13 @@ def ldp_engine_page():
     st.markdown("""
     **Architecture:** This tool translates psychological diagnostics into personalized 90-Day Development Protocols and Coaching Goals, ensuring development is scientifically rigorous and scalable.
     """)
-    
+
+
+    # Initialize session state variables for LDP page inputs
+    # NOTE: Inputs from the main LDP form are needed by the external buttons.
+    if 'ldp_context' not in st.session_state:
+        st.session_state['ldp_context'] = {'loc_score': 6, 'ambidextrous_score': 5, 'com_b_score': 5}
+        
     with st.form(key="ldp_form"):
         st.subheader("1. Diagnostic Input (COM-B & Leadership)")
         
@@ -59,7 +64,7 @@ def ldp_engine_page():
         leader_role = col2.selectbox("Role Level *", ["Global Executive", "Senior Leader", "People Leader"])
 
         st.markdown("---")
-        st.subheader("2. Behavioral Assessment Scores (1-10)")
+        st.subheader("2. Behavioural Assessment Scores (1-10)")
         
         c1, c2, c3 = st.columns(3)
         loc_score = c1.slider("LOC/Anxiety Score (Loss of Control)", 1, 10, 6, help="High score = High Anxiety over Black Box decisions.")
@@ -70,9 +75,8 @@ def ldp_engine_page():
         primary_barrier = st.selectbox("Identified Primary Barrier (From COM-B Audit)", ["Status Threat", "Loss of Control (LOC)", "Social Norm Barrier", "Skill Deficit"])
         theme = st.selectbox("Core Development Theme", ["Ambidextrous Supervision", "Ethical Stewardship", "Outcome Orchestration"])
 
-        
         st.markdown("---")
-        st.subheader("3. 🧠 Strategic Behavioral & Ethical Diagnostic")
+        st.subheader("3. 🧠 Strategic Behavioural & Ethical Diagnostic")
         st.caption("Rate your agreement (1=Strongly Disagree, 5=Strongly Agree) unless specified.")
 
         col_eth, col_safety = st.columns(2)
@@ -102,38 +106,50 @@ def ldp_engine_page():
         submitted = st.form_submit_button("Generate 90-Day Protocol")
 
 
+        # After submission, update session state with the latest values for button handlers
+        if submitted:
+            st.session_state['ldp_context'].update({
+                'loc_score': loc_score, 'ambidextrous_score': ambidextrous_score, 'com_b_score': com_b_score,
+                'leader_role': leader_role, 'primary_barrier': primary_barrier, 'theme': theme,
+                'ethical_a': ethical_a_score, 'ethical_b': ethical_b_input, 'safety_a': safety_a_score,
+                'safety_b': safety_b_score, 'collab_a': collab_a_score, 'collab_b': collab_b_score,
+                'growth_a': growth_a_score, 'growth_b': growth_b_score
+            })
+            
     # --- ACTION BUTTONS (OUTSIDE THE FORM) ---
     st.markdown("---")
 
 
     # NEW: Status Anchor Dialogue button handler (Moved outside the form to fix StreamlitAPIException)
     if st.button("Generate Status Anchor Dialogue (AI Coach)"):
-        # We need the last submitted/defined values for the AI call context
-        inputs = st.session_state.get('current_form_inputs', {})
+        # Retrieve context from the last submission/interaction
+        context = st.session_state.get('ldp_context', {})
         
-        # Retrieve scores that might not be in 'current_form_inputs' but are needed for the AI call
-        # Since these variables were defined *inside* the form, we rely on the state from the last full form submission (if submitted) 
-        # or mock values if running standalone. For the demo, we use the last form state values for safety.
-
-        if inputs:
+        # Safely retrieve context, using defaults if not yet submitted (prevents KeyError)
+        leader_role_context = context.get('leader_role', 'People Leader')
+        primary_barrier_context = context.get('primary_barrier', 'Status Threat')
+        
+        if leader_name or context.get('leader_name'):
             with st.spinner("Generating personalized coaching dialogue..."):
                 # Call the NEW Status Anchor Dialogue function
                 dialogue_text = run_status_anchor_dialogue(
-                    leader_role=inputs['audience_level'], # Using cohort level as proxy for leader_role
-                    primary_barrier=inputs['primary_behavioural_gap'], # Using cohort gap as proxy for barrier
-                    loc_score=st.session_state.get('loc_score', 6), # Safely use hardcoded defaults if necessary
-                    growth_a=st.session_state.get('growth_a_score', 4) # Safely use hardcoded defaults if necessary
+                    leader_role=leader_role_context, 
+                    primary_barrier=primary_barrier_context,
+                    # Pass default values if the context dict is empty
+                    loc_score=context.get('loc_score', 6),  
+                    growth_a=context.get('growth_a', 4)
                 )
                 
                 st.session_state['dialogue_output'] = dialogue_text
                 st.session_state['dialogue_run_status'] = 'ready'
                 st.rerun() 
         else:
-            st.warning("Please submit the main form once to load diagnostic context.")
+            st.warning("Please enter a Leader Name and submit the 90-Day Protocol first.")
             
-
     
     if submitted and leader_name:
+        context = st.session_state['ldp_context'] # Use latest context dictionary
+        
         with st.spinner("Generating individualized coaching protocol..."):
             # Call the updated AI function with all 13 inputs
             protocol = run_ldp_protocol_generator(
@@ -154,28 +170,29 @@ def ldp_engine_page():
             
             # Save the diagnostic result to the DB
             db_record = {
-                "leader_name": leader_name,
-                "role_level": leader_role,
-                "loc_score": loc_score,
-                "ambidextrous_score": ambidextrous_score,
-                "com_b_score": com_b_score,
-                "primary_barrier": primary_barrier,
-                "core_development_theme": theme,
+                "leader_name": leader_name, # Use directly from input
+                "role_level": context['leader_role'],
+                "loc_score": context['loc_score'],
+                "ambidextrous_score": context['ambidextrous_score'],
+                "com_b_score": context['com_b_score'],
+                "primary_barrier": context['primary_barrier'],
+                "core_development_theme": context['theme'],
                 "protocol_generated": protocol,
                 
                 # Saving the 8 New Diagnostic Fields:
-                "ethical_a_score": ethical_a_score,
-                "ethical_b_score": ethical_b_input, 
-                "safety_a_score": safety_a_score,
-                "safety_b_score": safety_b_score,
-                "collab_a_score": collab_a_score,
-                "collab_b_score": collab_b_score,
-                "growth_a_score": growth_a_score,
-                "growth_b_score": growth_b_score
+                "ethical_a_score": context['ethical_a'],
+                "ethical_b_score": context['ethical_b'], 
+                "safety_a_score": context['safety_a'],
+                "safety_b_score": context['safety_b'],
+                "collab_a_score": context['collab_a'],
+                "collab_b_score": context['collab_b'],
+                "growth_a_score": context['growth_a'],
+                "growth_b_score": context['growth_b']
             }
-            with engine.connect() as conn:
-                conn.execute(insert(individual_diagnostics_table).values(db_record))
+            with database.engine.connect() as conn: # Ensure engine is accessed correctly
+                conn.execute(insert(database.individual_diagnostics_table).values(db_record))
                 conn.commit()
+
 
         st.success(f"Protocol Generated for {leader_name}. Ready for deployment via AI Coach App.")
         st.markdown("---")
@@ -185,15 +202,15 @@ def ldp_engine_page():
         # Display static Coaching Dialogue prompt concept (Optional visual aid)
         st.caption("Conceptual Model: This protocol forms the core of the personalized AI Coach dialogue prompts (e.g., Conversation Design).")
 
-
     # --- Display Logic for the new button (Placed after the main form) ---
     if st.session_state.get('dialogue_run_status') == 'ready':
         st.markdown("---")
         st.subheader("🗣️ Status Anchor Dialogue (Just-in-Time Coaching)")
-        st.info(st.session_state['dialogue_output'])
+        st.markdown(st.session_state['dialogue_output'])
         # Reset status after displaying
         st.session_state['dialogue_run_status'] = 'displayed'
         st.session_state['dialogue_output'] = st.session_state['dialogue_output'] # Keep output for rerun stability
+
     
     # --- Display Generated Brief (Below the main form logic) ---
     if st.session_state.get('brief_run_status') == 'ready':
@@ -203,7 +220,6 @@ def ldp_engine_page():
          # Reset run status after displaying
          st.session_state['brief_run_status'] = 'displayed'
          st.session_state['brief_output'] = st.session_state['brief_output'] # Keep output for rerun stability
-
 
 # --- 1. The Capability Needs Assessment (Intake) ---
 def intake_form_page():
