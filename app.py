@@ -4,15 +4,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from sqlalchemy.sql import insert, select
-import logic 
-import database  # Simply import it right after the core utility imports
-
+import logic
+import database 
 
 # Import setup
-from database import engine, capability_assessments_table, vendor_registry_table
-from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk 
-from ai_logic import run_compliance_brief_generator # Import new AI function
-
+from database import engine, capability_assessments_table, vendor_registry_table, individual_diagnostics_table
+from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk, SWP_WORKSTREAMS, calculate_execution_score
+from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator # NEW IMPORT
 
 # --- App Configuration ---
 st.set_page_config(
@@ -44,6 +42,71 @@ def seed_vendors():
 # Run seed on app load
 seed_vendors()
 
+
+# --- NEW PAGE: Individual Coach Architect (LDP Engine) ---
+def ldp_engine_page():
+    st.title("👤 Individual Coach Architect (LDP Engine)")
+    st.markdown("""
+    **Architecture:** This tool translates psychological diagnostics into personalized 90-Day Development Protocols and Coaching Goals, ensuring development is scientifically rigorous and scalable.
+    """)
+    
+    with st.form(key="ldp_form"):
+        st.subheader("1. Diagnostic Input (COM-B & Leadership)")
+        
+        col1, col2 = st.columns(2)
+        leader_name = col1.text_input("Leader Name/ID *")
+        leader_role = col2.selectbox("Role Level *", ["Global Executive", "Senior Leader", "People Leader"])
+
+        st.markdown("---")
+        st.subheader("2. Behavioral Assessment Scores (1-10)")
+        
+        c1, c2, c3 = st.columns(3)
+        loc_score = c1.slider("LOC/Anxiety Score (Loss of Control)", 1, 10, 6, help="High score = High Anxiety over Black Box decisions.")
+        ambidextrous_score = c2.slider("Ambidextrous Score (Innovation vs. Stability)", 1, 10, 5, help="Score leader's ability to balance exploitation/exploration.")
+        com_b_score = c3.slider("Overall COM-B Resistance Score", 1, 10, 5, help="Calculated resistance level.")
+
+        # --- Conceptual Inputs for AI Generation ---
+        primary_barrier = st.selectbox("Identified Primary Barrier (From COM-B Audit)", ["Status Threat", "Loss of Control (LOC)", "Social Norm Barrier", "Skill Deficit"])
+        theme = st.selectbox("Core Development Theme", ["Ambidextrous Supervision", "Ethical Stewardship", "Outcome Orchestration"])
+        
+        submitted = st.form_submit_button("Generate 90-Day Protocol")
+
+    if submitted and leader_name:
+        with st.spinner("Generating individualized coaching protocol..."):
+            protocol = run_ldp_protocol_generator(
+                leader_role=leader_role,
+                primary_barrier=primary_barrier,
+                theme=theme,
+                loc_score=loc_score,
+                ambidextrous_score=ambidextrous_score
+            )
+            # Save the diagnostic result to the DB
+            from database import individual_diagnostics_table
+            from sqlalchemy.sql import insert
+            db_record = {
+                "leader_name": leader_name,
+                "role_level": leader_role,
+                "loc_score": loc_score,
+                "ambidextrous_score": ambidextrous_score,
+                "com_b_score": com_b_score,
+                "primary_barrier": primary_barrier,
+                "core_development_theme": theme,
+                "protocol_generated": protocol
+            }
+            with engine.connect() as conn:
+                conn.execute(insert(individual_diagnostics_table).values(db_record))
+                conn.commit()
+
+        st.success(f"Protocol Generated for {leader_name}. Ready for deployment via AI Coach App.")
+        st.markdown("---")
+        st.subheader("3. 90-Day Development Protocol (AI Coach Output)")
+        st.markdown(protocol)
+        
+        # Display the Coaching Dialogue prompt diagram visually for Hannah
+        st.image("http://googleusercontent.com/image_collection/image_retrieval/some_id_string", 
+                 caption="Conceptual Dialogue Prompts (Ref: Coaching Psychology)", use_column_width=True)
+
+
 # --- 1. The Capability Needs Assessment (Intake) ---
 def intake_form_page():
     st.title("🚀 QBE AI Workforce Evolution Engine")
@@ -53,7 +116,6 @@ def intake_form_page():
     """)
 
     # Use a session state dictionary to store current form inputs for the independent button handler
-    # This prevents the brief generator from crashing when trying to access form inputs outside the form block
     current_inputs = {}
 
     with st.form(key="assessment_form"):
@@ -108,6 +170,19 @@ def intake_form_page():
         if gap_val > 0:
             st.caption(f"Projected Shift: +{gap_val} points")
 
+        # --- NEW EXECUTION/COORDINATION INPUTS (Module 3) ---
+        st.markdown("---")
+        st.subheader("3. Execution & Coordination")
+        
+        col_exec, col_swp = st.columns(2)
+        
+        # NEW: Execution Status
+        execution_status = col_exec.selectbox("Program Status", logic.EXECUTION_STATUSES, index=0)
+        
+        # NEW: SWP Workstream Linkage
+        swp_workstream = col_swp.selectbox("SWP Workstream Linkage", logic.SWP_WORKSTREAMS, help="Links program to AI Workforce Strategy priorities.")
+        
+        
         # --- New Section for Governance Assurance (4. 🛡️ AI Governance Assurance Gate) ---
         st.markdown("---")
         st.subheader("4. 🛡️ AI Governance Assurance Gate")
@@ -203,7 +278,9 @@ def intake_form_page():
                 "estimated_budget": result['estimated_budget'],
                 "baseline_behavior_score": baseline,
                 "target_behavior_score": target,
-                "selected_vendor": final_vendor
+                "selected_vendor": final_vendor,
+                "execution_status": execution_status, # NEW FIELD
+                "swp_workstream": swp_workstream # NEW FIELD
             }
 
             # 3. Save
@@ -234,9 +311,9 @@ def intake_form_page():
          st.session_state['brief_output'] = st.session_state['brief_output'] # Keep output for rerun stability
 
 
-# --- 2. The Global Strategy Dashboard ---
+# --- 2. The Global Strategy Dashboard (Enterprise Talent Command Centre) ---
 def strategy_dashboard_page():
-    st.title("🌍 Global AI Workforce Strategy Dashboard")
+    st.title("🌍 Global AI Workforce Strategy Dashboard (Command Centre)")
     st.markdown("Tracking maturity, investment, and behavioural shifts across the enterprise.")
 
     try:
@@ -248,14 +325,19 @@ def strategy_dashboard_page():
         st.error(f"Database Error: {e}")
         return
 
+    # Recalculate metrics
+    readiness_data = calculate_execution_score(df)
+    
     # --- Row 1: Metrics ---
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4) 
     col1.metric("Total Cohorts Assessed", len(df))
     col2.metric("Total Projected Investment", f"${df['estimated_budget'].sum():,.0f}")
     
-    avg_gap = (df['target_behavior_score'] - df['baseline_behavior_score']).mean()
-    col3.metric("Avg. Behavioural Gap", f"{avg_gap:.1f} pts")
-
+    # NEW METRIC: Execution Score (Module 3)
+    col3.metric("Strategic Execution Score", f"{readiness_data['readiness_score']}%", 
+                help="Weighted score favoring Scaling and Complete programs.")
+    col4.metric("Programs Completed", f"{readiness_data['complete_count']}")
+    
     st.markdown("---")
 
     # --- Row 2: Global Heatmap (Tier 1 Feature) ---
@@ -292,40 +374,30 @@ def strategy_dashboard_page():
     else:
         st.warning("Not enough regional data to generate map.")
 
-    # --- Row 3: Behavioural Shift Tracker (Tier 1 Feature) ---
+    st.markdown("---")
+
+    # --- NEW EXECUTION TRACKING CHARTS (Module 3) ---
     col1, col2 = st.columns(2)
     
-    # Chart 1: Vendor Performance (Scatter)
-    try:
-        vendor_df = pd.read_sql_table("vendor_registry", engine)
-        # Merge assessment spend into vendor data
-        spend_by_vendor = df.groupby('selected_vendor')['estimated_budget'].sum().reset_index()
-        vendor_perf = pd.merge(vendor_df, spend_by_vendor, left_on='vendor_name', right_on='selected_vendor', how='left').fillna(0)
-        
-        fig_perf = px.scatter(vendor_perf, x='estimated_budget', y='performance_rating', 
-                              size='avg_daily_rate', color='vendor_name',
-                              title="Vendor Strategic Value (Spend vs. Rating)",
-                              labels={'estimated_budget': 'Total QBE Spend', 'performance_rating': 'Quality Rating (1-5)'})
-        col1.plotly_chart(fig_perf, use_container_width=True)
-    except:
-        col1.info("Vendor data pending.")
-
-    # Chart 2: Behavioural Shift (Slope/Dumbbell Chart Logic)
-    # Using a bar chart showing Start vs Target for top cohorts
-    df_shift = df.head(10).copy() # Top 10 for readability
-    fig_shift = go.Figure()
-    fig_shift.add_trace(go.Bar(x=df_shift['cohort_name'], y=df_shift['baseline_behavior_score'], name='Current State', marker_color='orange'))
-    fig_shift.add_trace(go.Bar(x=df_shift['cohort_name'], y=df_shift['target_behavior_score']-df_shift['baseline_behavior_score'], name='Target Growth', marker_color='green'))
-    fig_shift.update_layout(barmode='stack', title="Behavioural Shift Goals (Top Cohorts)")
-    col2.plotly_chart(fig_shift, use_container_width=True)
-
+    # Chart 3: Program Execution Status (New Donut Chart)
+    fig_exec = px.pie(df, names='execution_status', title='Global Program Execution Status')
+    col1.plotly_chart(fig_exec, use_container_width=True)
+    
+    # Chart 4: SWP Workstream Coordination (New Bar Chart)
+    fig_swp = px.histogram(df, x='swp_workstream', title='Coordination: Programs by SWP Workstream')
+    col2.plotly_chart(fig_swp, use_container_width=True)
+    
     # --- Row 4: Data ---
     st.subheader("Cohort Registry")
-    st.dataframe(df[['cohort_name', 'region', 'audience_level', 'recommended_pathway', 'baseline_behavior_score', 'target_behavior_score', 'governance_checklist_status']], use_container_width=True)
+    display_cols = ['cohort_name', 'region', 'audience_level', 'recommended_pathway', 
+                    'execution_status', 'swp_workstream', 'governance_checklist_status']
+    st.dataframe(df[display_cols], use_container_width=True)
+
 
 # --- Main App Router ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Capability Assessment", "Strategy Dashboard"])
+# Added Individual Coach Architect page
+page = st.sidebar.radio("Go to:", ["Capability Assessment", "Strategy Dashboard", "Individual Coach Architect"])
 
 if page == "Capability Assessment":
     # Initialize session state for brief output control
@@ -337,8 +409,13 @@ if page == "Capability Assessment":
         st.session_state['current_form_inputs'] = {}
         
     intake_form_page()
-else:
+elif page == "Strategy Dashboard":
     # Clear brief state when switching tabs
     st.session_state['brief_output'] = None
     st.session_state['brief_run_status'] = 'initial'
     strategy_dashboard_page()
+elif page == "Individual Coach Architect":
+    # Clear brief state when switching tabs
+    st.session_state['brief_output'] = None
+    st.session_state['brief_run_status'] = 'initial'
+    ldp_engine_page()
