@@ -39,6 +39,10 @@ capability_assessments_table = sqlalchemy.Table(
     sqlalchemy.Column("recommended_vendor", sqlalchemy.String),   # <--- CHECK 2
     sqlalchemy.Column("estimated_budget", sqlalchemy.Integer),
     
+    # NEW FIELDS FOR EXECUTION & COORDINATION
+    sqlalchemy.Column("swp_workstream", sqlalchemy.String),  # Links to strategic priority
+    sqlalchemy.Column("execution_status", sqlalchemy.String, default="Planning"), # Tracks delivery status
+    
     # Management Fields
     sqlalchemy.Column("status", sqlalchemy.String, default="Proposed"), 
     sqlalchemy.Column("submission_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
@@ -70,6 +74,25 @@ behaviour_pulse_table = sqlalchemy.Table(
     sqlalchemy.Column("check_date", sqlalchemy.String),
     sqlalchemy.Column("new_score", sqlalchemy.Integer),
     sqlalchemy.Column("notes", sqlalchemy.String)
+)
+
+# 4. Individual Diagnostics Table (NEW TABLE for LDP Engine)
+individual_diagnostics_table = sqlalchemy.Table(
+    "individual_diagnostics",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("leader_name", sqlalchemy.String),
+    sqlalchemy.Column("role_level", sqlalchemy.String),
+    
+    # Diagnostic Variables (Input)
+    sqlalchemy.Column("loc_score", sqlalchemy.Integer),        # Loss of Control Score
+    sqlalchemy.Column("ambidextrous_score", sqlalchemy.Integer), # Ambidextrous Leadership Score
+    
+    # AI Output
+    sqlalchemy.Column("primary_barrier", sqlalchemy.String),  # e.g., Status Threat
+    sqlalchemy.Column("core_development_theme", sqlalchemy.String), # e.g., Ambidextrous Supervision
+    sqlalchemy.Column("protocol_generated", sqlalchemy.Text), # The 90-Day plan text
+    sqlalchemy.Column("creation_date", sqlalchemy.DateTime, default=sqlalchemy.func.now())
 )
 
 # --- CRITICAL FIX: AGGRESSIVELY RESET VENDOR TABLE FOR SCHEMA UPDATE ---
