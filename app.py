@@ -100,6 +100,28 @@ def ldp_engine_page():
         
         submitted = st.form_submit_button("Generate 90-Day Protocol")
 
+
+
+        # --- NEW BUTTON FOR STATUS ANCHOR DIALOGUE (Added outside the main form submission for clarity) ---
+        if st.button("Generate Status Anchor Dialogue (AI Coach)"):
+            
+            # --- Logic to simulate running the dialogue generator function ---
+            # NOTE: We assume a function run_status_anchor_dialogue() exists in ai_logic.py
+            
+            with st.spinner("Generating personalized coaching dialogue..."):
+                # Simulate generating a specific dialogue using the diagnostic inputs
+                dialogue_text = "Status Anchor Dialogue Placeholder: How to reframe expertise..." 
+                
+                # In a real build, you would call a new AI function here:
+                # dialogue_text = run_status_anchor_dialogue(leader_role, primary_barrier, loc_score, ...)
+
+                st.session_state['dialogue_output'] = dialogue_text
+                st.session_state['dialogue_run_status'] = 'ready'
+                st.rerun()
+
+
+
+    
     if submitted and leader_name:
         with st.spinner("Generating individualized coaching protocol..."):
             # Call the updated AI function with all 13 inputs
@@ -347,6 +369,16 @@ def intake_form_page():
             st.info(f"**Gap Analysis:** {target-baseline} point delta. **{gap_tag}**")
             st.progress(baseline/10)
 
+    # --- Display Logic for the new button (Placed after the main form) ---
+    if st.session_state.get('dialogue_run_status') == 'ready':
+        st.markdown("---")
+        st.subheader("🗣️ Status Anchor Dialogue (Just-in-Time Coaching)")
+        st.info(st.session_state['dialogue_output'])
+        # Reset status after displaying
+        st.session_state['dialogue_run_status'] = 'displayed'
+        st.session_state['dialogue_output'] = st.session_state['dialogue_output'] # Keep output for rerun stability
+    
+        
     # --- Display Generated Brief (Below the main form logic) ---
     if st.session_state.get('brief_run_status') == 'ready':
          st.subheader("📄 Ethical Risk Brief Output")
