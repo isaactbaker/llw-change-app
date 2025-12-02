@@ -88,6 +88,14 @@ individual_diagnostics_table = sqlalchemy.Table(
     sqlalchemy.Column("loc_score", sqlalchemy.Integer),
     sqlalchemy.Column("ambidextrous_score", sqlalchemy.Integer),
     sqlalchemy.Column("com_b_score", sqlalchemy.Integer), # <--- CHECK THIS FIELD
+    sqlalchemy.Column("ethical_a_score", sqlalchemy.Integer),
+    sqlalchemy.Column("ethical_b_score", sqlalchemy.String), # Open text for Question 2
+    sqlalchemy.Column("safety_a_score", sqlalchemy.Integer),
+    sqlalchemy.Column("safety_b_score", sqlalchemy.Integer),
+    sqlalchemy.Column("collab_a_score", sqlalchemy.Integer),
+    sqlalchemy.Column("collab_b_score", sqlalchemy.Integer),
+    sqlalchemy.Column("growth_a_score", sqlalchemy.Integer),
+    sqlalchemy.Column("growth_b_score", sqlalchemy.Integer),
     
     # AI Output
     sqlalchemy.Column("primary_barrier", sqlalchemy.String),  # e.g., Status Threat
