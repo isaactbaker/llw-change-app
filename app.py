@@ -1,4 +1,5 @@
 # app.py
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -9,8 +10,9 @@ import database
 
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table, individual_diagnostics_table
-from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk, SWP_WORKSTREAMS, calculate_execution_score
-from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator # NEW IMPORT
+from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk, SWP_WORKSTREAMS, EXECUTION_STATUSES, calculate_execution_score
+from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator
+
 
 # --- App Configuration ---
 st.set_page_config(
@@ -20,7 +22,6 @@ st.set_page_config(
 )
 
 # --- GLOBAL CONFIGURATION DATA (EMBEDDED PRINCIPLES) ---
-# This list is needed to populate the Governance Checklist UI.
 QBE_AI_PRINCIPLES = [
     "Fairness (Prevent Bias/Discrimination)",
     "Privacy (Data Safeguarding)",
@@ -65,52 +66,49 @@ def ldp_engine_page():
         ambidextrous_score = c2.slider("Ambidextrous Score (Innovation vs. Stability)", 1, 10, 5, help="Score leader's ability to balance exploitation/exploration.")
         com_b_score = c3.slider("Overall COM-B Resistance Score", 1, 10, 5, help="Calculated resistance level.")
 
-
+        # --- Conceptual Inputs for AI Generation ---
+        primary_barrier = st.selectbox("Identified Primary Barrier (From COM-B Audit)", ["Status Threat", "Loss of Control (LOC)", "Social Norm Barrier", "Skill Deficit"])
+        theme = st.selectbox("Core Development Theme", ["Ambidextrous Supervision", "Ethical Stewardship", "Outcome Orchestration"])
+        
         st.markdown("---")
         st.subheader("3. 🧠 Strategic Behavioral & Ethical Diagnostic")
         st.caption("Rate your agreement (1=Strongly Disagree, 5=Strongly Agree) unless specified.")
-        
+
         col_eth, col_safety = st.columns(2)
-        
+
         # Ethical Stewardship & Accountability
         col_eth.markdown("**Ethical Stewardship & Accountability**")
         ethical_a_score = col_eth.slider("Q1: Primary risk from an AI error lies with the person who approves the output, not the machine.", 1, 5, 4)
         ethical_b_input = col_eth.text_area("Q2: Given a claims denial based on AI, how would you coach your team member to communicate the final decision?", height=100) # Open Text
-        
+
         # Psychological Safety & Resilience
         col_safety.markdown("**Psychological Safety & Resilience**")
         safety_a_score = col_safety.slider("Q3: My team feels comfortable reporting an AI 'hallucination' or error without fear of being penalized.", 1, 5, 3)
         safety_b_score = col_safety.slider("Q4: When a new AI tool automates 30% of my team's old tasks, I focus on training them for new roles.", 1, 5, 4)
-        
+
         col_collab, col_growth = st.columns(2)
-        
+
         # Intentional Collaboration (Silo Reduction)
         col_collab.markdown("**Intentional Collaboration (Silo Reduction)**")
         collab_a_score = col_collab.slider("Q5: My department's success is fundamentally tied to the success of the Technology and Claims departments.", 1, 5, 5)
         collab_b_score = col_collab.slider("Q6: I actively seek input from the Compliance/Legal team during the initial design phase of a new business process.", 1, 5, 4)
-        
+
         # Growth Mindset & Continuous Learning
         col_growth.markdown("**Growth Mindset & Continuous Learning**")
         growth_a_score = col_growth.slider("Q7: I believe my ability to learn new AI-related skills is unlimited, regardless of my current technical background.", 1, 5, 4)
         growth_b_score = col_growth.slider("Q8: I allocate protected time (e.g., 2 hours per week) for myself and my team to experiment with new digital tools.", 1, 5, 3)
-
-        # --- Conceptual Inputs for AI Generation ---
-        primary_barrier = st.selectbox("Identified Primary Barrier (From COM-B Audit)", ["Status Threat", "Loss of Control (LOC)", "Social Norm Barrier", "Skill Deficit"])
-        theme = st.selectbox("Core Development Theme", ["Ambidextrous Supervision", "Ethical Stewardship", "Outcome Orchestration"])
         
         submitted = st.form_submit_button("Generate 90-Day Protocol")
 
     if submitted and leader_name:
         with st.spinner("Generating individualized coaching protocol..."):
-            # Update the function call to pass all 8 scores/inputs
+            # Call the updated AI function with all 13 inputs
             protocol = run_ldp_protocol_generator(
                 leader_role=leader_role,
                 primary_barrier=primary_barrier,
                 theme=theme,
                 loc_score=loc_score,
                 ambidextrous_score=ambidextrous_score,
-                
-                # NEW DIAGNOSTIC INPUTS:
                 ethical_a=ethical_a_score,
                 ethical_b=ethical_b_input, 
                 safety_a=safety_a_score,
@@ -120,27 +118,27 @@ def ldp_engine_page():
                 growth_a=growth_a_score,
                 growth_b=growth_b_score
             )
-    
+            
             # Save the diagnostic result to the DB
-            from database import individual_diagnostics_table
-            from sqlalchemy.sql import insert
             db_record = {
                 "leader_name": leader_name,
                 "role_level": leader_role,
                 "loc_score": loc_score,
                 "ambidextrous_score": ambidextrous_score,
                 "com_b_score": com_b_score,
+                "primary_barrier": primary_barrier,
+                "core_development_theme": theme,
+                "protocol_generated": protocol,
+                
+                # Saving the 8 New Diagnostic Fields:
                 "ethical_a_score": ethical_a_score,
-                "ethical_b_score": ethical_b_input, # Save text input
+                "ethical_b_score": ethical_b_input, 
                 "safety_a_score": safety_a_score,
                 "safety_b_score": safety_b_score,
                 "collab_a_score": collab_a_score,
                 "collab_b_score": collab_b_score,
                 "growth_a_score": growth_a_score,
-                "growth_b_score": growth_b_score,
-                "primary_barrier": primary_barrier,
-                "core_development_theme": theme,
-                "protocol_generated": protocol
+                "growth_b_score": growth_b_score
             }
             with engine.connect() as conn:
                 conn.execute(insert(individual_diagnostics_table).values(db_record))
@@ -151,9 +149,8 @@ def ldp_engine_page():
         st.subheader("3. 90-Day Development Protocol (AI Coach Output)")
         st.markdown(protocol)
         
-        # Display the Coaching Dialogue prompt diagram visually for Hannah
-        st.image("http://googleusercontent.com/image_collection/image_retrieval/some_id_string", 
-                 caption="Conceptual Dialogue Prompts (Ref: Coaching Psychology)", use_column_width=True)
+        # Display static Coaching Dialogue prompt concept (Optional visual aid)
+        st.caption("Conceptual Model: This protocol forms the core of the personalized AI Coach dialogue prompts (e.g., Conversation Design).")
 
 
 # --- 1. The Capability Needs Assessment (Intake) ---
@@ -442,10 +439,8 @@ def strategy_dashboard_page():
                     'execution_status', 'swp_workstream', 'governance_checklist_status']
     st.dataframe(df[display_cols], use_container_width=True)
 
-
 # --- Main App Router ---
 st.sidebar.title("Navigation")
-# Added Individual Coach Architect page
 page = st.sidebar.radio("Go to:", ["Capability Assessment", "Strategy Dashboard", "Individual Coach Architect"])
 
 if page == "Capability Assessment":
