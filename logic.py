@@ -133,7 +133,38 @@ DEFAULT_PATHWAY = """
 **Vendor:** Internal Digital Academy.
 """
 
+# NEW CONFIGURATION: Strategic Workstreams (Module 3)
+SWP_WORKSTREAMS = [
+    "AI Pilot / Co-Pilot Rollout (Immediate)",
+    "Job Architecture Redesign (High Priority)",
+    "Claims Tech Modernization",
+    "Corporate Functions Efficiency",
+    "Compliance & Governance Scaling"
+]
 
+# NEW CONFIGURATION: Execution Status (Module 3)
+EXECUTION_STATUSES = [
+    "Planning",
+    "Vetting",
+    "Pilot",
+    "Scaling",
+    "Complete"
+]
+
+def calculate_execution_score(df: pd.DataFrame) -> dict:
+    """Calculates the strategic readiness based on program status."""
+    total = len(df)
+    if total == 0:
+        return {"readiness_score": 0, "complete_count": 0}
+        
+    complete = df[df['execution_status'] == 'Complete'].shape[0]
+    scaling = df[df['execution_status'] == 'Scaling'].shape[0]
+    
+    # Score prioritizes scaling/completion over planning
+    readiness_score = ((complete * 1.5) + scaling) / total * 100
+    
+    return {"readiness_score": round(readiness_score), "complete_count": complete}
+    
 # NEW: Gap Calculation Helper
 def calculate_behavioural_gap(baseline, target):
     """Returns the 'Gap Size' and a strategic tag."""
