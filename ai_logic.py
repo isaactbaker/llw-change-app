@@ -178,32 +178,51 @@ Do not exceed 300 words.
 
 # --- NEW PROMPT FOR LDP PROTOCOL ENGINE (Module 1/4) ---
 PROMPT_INDIVIDUAL_PROTOCOL = """
-You are a PhD in Organizational Psychology and a certified Executive Coach, specializing in AI-driven change management.
-Your task is to generate a personalized 90-Day Leadership Development Protocol for a QBE leader facing the AI transition.
+You are a PhD in Organizational Psychology and a certified Executive Coach, specializing in AI-driven change management for heavily regulated environments.
+Your task is to generate a personalized 90-Day Leadership Development Protocol for a QBE leader based on their deep behavioral and ethical diagnostic profile.
 
-Context:
+Context & Primary Diagnostic:
 - Leader Role/Level: {leader_role}
 - Primary Behavioral Barrier (COM-B Diagnosis): {primary_barrier} (e.g., Status Threat / Loss of Control)
-- Capability Gap Theme: {theme} (e.g., Ambidextrous Leadership / Outcome Orchestration)
-- Diagnostic Scores (1-10): LOC Score: {loc_score}, Ambidextrous Score: {ambidextrous_score}
+- Core Capability Gap: {theme} (e.g., Ambidextrous Supervision / Outcome Orchestration)
+
+Behavioral Assessment Scores (1=Min, 5=Max Agreement):
+- LOC/Anxiety Score: {loc_score}
+- Ambidextrous Score: {ambidextrous_score}
+- Ethical Accountability (Q1): {ethical_a}
+- Psychological Safety (Q3): {safety_a}
+- Intentional Collaboration (Q5): {collab_a}
+- Growth Mindset (Q7): {growth_a}
+
+Qualitative Data on Ethical Communication (Q2): "{ethical_b}"
 
 Your response MUST be formatted in professional Markdown and include the following sections to guide their coaching journey:
 
-1.  **AI Synthesis & Coaching Goal:** A 2-sentence summary translating the scores (LOC/Ambidextrous) into their core developmental challenge and a specific, high-level Coaching Goal (e.g., "Shift identity from Expert Knower to Orchestrator of Intelligence").
-2.  **90-Day Protocol (3 Phased Actions):** Generate 3 specific, actionable steps for the leader, categorized into: **Action (Wks 1-4)**, **Application (Wks 5-8)**, and **Sustainment (Wks 9-12)**.
-3.  **Dialogue & Coaching Prompts:** Provide 2 key open-ended reflective questions (Dialogue Prompts) for the leader to practice with their team, focusing on the "{primary_barrier}" issue.
+1.  **Diagnosis Synthesis & Coaching Goal (The Pivot):** Analyze the lowest scoring area(s) from the 8 questions and the primary barrier. State the **Core Development Theme** (e.g., "Shifting the Status Anchor"). Provide a specific, high-level **Coaching Goal** for the next 90 days.
+2.  **90-Day Protocol (3 Phased Actions):** Generate 3 specific, actionable steps, categorized into: **Action (Wks 1-4)**, **Application (Wks 5-8)**, and **Sustainment (Wks 9-12)**. Actions must address the weakest areas identified (e.g., if Q6 is low, action must involve collaboration).
+3.  **Dialogue & Conversation Design:** Provide 2 open-ended reflective questions (Dialogue Prompts) for the leader to practice with their team. **These must directly reference the QBE Principles (Fairness, Accountability) or the risk outlined in the Qualitative Data (Q2/Ethical Communication).**
 """
 
+
 # 3. API-Calling Functions
-def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int) -> str:
+# Update the function signature and body to handle all 8 new inputs
+def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int, ethical_a: int, ethical_b: str, safety_a: int, safety_b: int, collab_a: int, collab_b: int, growth_a: int, growth_b: int) -> str:
     """Generates the individualized 90-Day Leadership Development Protocol."""
-    system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach."
+    system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach, specializing in AI governance."
     payload = {
         "leader_role": leader_role,
         "primary_barrier": primary_barrier,
         "theme": theme,
         "loc_score": loc_score,
-        "ambidextrous_score": ambidextrous_score
+        "ambidextrous_score": ambidextrous_score,
+        "ethical_a": ethical_a,
+        "ethical_b": ethical_b,
+        "safety_a": safety_a,
+        "safety_b": safety_b,
+        "collab_a": collab_a,
+        "collab_b": collab_b,
+        "growth_a": growth_a,
+        "growth_b": growth_b
     }
     return call_ai_analysis(PROMPT_INDIVIDUAL_PROTOCOL, payload, system_prompt)
     
