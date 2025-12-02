@@ -183,8 +183,8 @@ Your task is to generate a personalized 90-Day Leadership Development Protocol f
 
 Context & Primary Diagnostic:
 - Leader Role/Level: {leader_role}
-- Primary Behavioral Barrier (COM-B Diagnosis): {primary_barrier} (e.g., Status Threat / Loss of Control)
-- Core Capability Gap: {theme} (e.g., Ambidextrous Supervision / Outcome Orchestration)
+- Primary Behavioral Barrier (COM-B Diagnosis): {primary_barrier}
+- Core Capability Gap Theme: {theme}
 
 Behavioral Assessment Scores (1=Min, 5=Max Agreement):
 - LOC/Anxiety Score: {loc_score}
@@ -199,13 +199,13 @@ Qualitative Data on Ethical Communication (Q2): "{ethical_b}"
 Your response MUST be formatted in professional Markdown and include the following sections to guide their coaching journey:
 
 1.  **Diagnosis Synthesis & Coaching Goal (The Pivot):** Analyze the lowest scoring area(s) from the 8 questions and the primary barrier. State the **Core Development Theme** (e.g., "Shifting the Status Anchor"). Provide a specific, high-level **Coaching Goal** for the next 90 days.
-2.  **90-Day Protocol (3 Phased Actions):** Generate 3 specific, actionable steps, categorized into: **Action (Wks 1-4)**, **Application (Wks 5-8)**, and **Sustainment (Wks 9-12)**. Actions must address the weakest areas identified (e.g., if Q6 is low, action must involve collaboration).
+2.  **90-Day Protocol (3 Phased Actions):** Generate 3 specific, actionable steps, categorized into: **Action (Wks 1-4)**, **Application (Wks 5-8)**, and **Sustainment (Wks 9-12)**. Actions must address the weakest areas identified (e.g., if Q6/Collaboration is low, action must involve proactive cross-functional dialogue).
 3.  **Dialogue & Conversation Design:** Provide 2 open-ended reflective questions (Dialogue Prompts) for the leader to practice with their team. **These must directly reference the QBE Principles (Fairness, Accountability) or the risk outlined in the Qualitative Data (Q2/Ethical Communication).**
 """
 
 
 # 3. API-Calling Functions
-# Update the function signature and body to handle all 8 new inputs
+# Update the function signature and body to handle all 13 inputs
 def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int, ethical_a: int, ethical_b: str, safety_a: int, safety_b: int, collab_a: int, collab_b: int, growth_a: int, growth_b: int) -> str:
     """Generates the individualized 90-Day Leadership Development Protocol."""
     system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach, specializing in AI governance."
