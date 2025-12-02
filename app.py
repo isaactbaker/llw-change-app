@@ -66,9 +66,10 @@ def ldp_engine_page():
         ambidextrous_score = c2.slider("Ambidextrous Score (Innovation vs. Stability)", 1, 10, 5, help="Score leader's ability to balance exploitation/exploration.")
         com_b_score = c3.slider("Overall COM-B Resistance Score", 1, 10, 5, help="Calculated resistance level.")
 
-        # --- Conceptual Inputs for AI Generation ---
+# --- Conceptual Inputs for AI Generation (Used by both buttons) ---
         primary_barrier = st.selectbox("Identified Primary Barrier (From COM-B Audit)", ["Status Threat", "Loss of Control (LOC)", "Social Norm Barrier", "Skill Deficit"])
         theme = st.selectbox("Core Development Theme", ["Ambidextrous Supervision", "Ethical Stewardship", "Outcome Orchestration"])
+
         
         st.markdown("---")
         st.subheader("3. 🧠 Strategic Behavioral & Ethical Diagnostic")
@@ -103,19 +104,33 @@ def ldp_engine_page():
 
     # --- ACTION BUTTONS (OUTSIDE THE FORM) ---
     st.markdown("---")
-    
-    # NEW: Status Anchor Dialogue button handler (Moved outside the form)
+
+
+    # NEW: Status Anchor Dialogue button handler (Moved outside the form to fix StreamlitAPIException)
     if st.button("Generate Status Anchor Dialogue (AI Coach)"):
-        # We use the leader_name from session state or last form interaction for the AI call context
-        current_leader_name = st.session_state.get('leader_name_input', 'Leader') # Use key if inputs were defined with keys
+        # We need the last submitted/defined values for the AI call context
+        inputs = st.session_state.get('current_form_inputs', {})
         
-        with st.spinner("Generating personalized coaching dialogue..."):
-            # Simulation of Dialogue Generation (You would replace this with a functional call)
-            dialogue_text = f"Status Anchor Dialogue for {current_leader_name}: Your challenge is anchoring identity. **Coaching Prompt:** How does relying on the AI Co-pilot allow you to focus your expertise on managing complex risk instead of data entry?"
+        # Retrieve scores that might not be in 'current_form_inputs' but are needed for the AI call
+        # Since these variables were defined *inside* the form, we rely on the state from the last full form submission (if submitted) 
+        # or mock values if running standalone. For the demo, we use the last form state values for safety.
+
+        if inputs:
+            with st.spinner("Generating personalized coaching dialogue..."):
+                # Call the NEW Status Anchor Dialogue function
+                dialogue_text = run_status_anchor_dialogue(
+                    leader_role=inputs['audience_level'], # Using cohort level as proxy for leader_role
+                    primary_barrier=inputs['primary_behavioural_gap'], # Using cohort gap as proxy for barrier
+                    loc_score=st.session_state.get('loc_score', 6), # Safely use hardcoded defaults if necessary
+                    growth_a=st.session_state.get('growth_a_score', 4) # Safely use hardcoded defaults if necessary
+                )
+                
+                st.session_state['dialogue_output'] = dialogue_text
+                st.session_state['dialogue_run_status'] = 'ready'
+                st.rerun() 
+        else:
+            st.warning("Please submit the main form once to load diagnostic context.")
             
-            st.session_state['dialogue_output'] = dialogue_text
-            st.session_state['dialogue_run_status'] = 'ready'
-            st.rerun()
 
     
     if submitted and leader_name:
