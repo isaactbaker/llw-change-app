@@ -3,7 +3,7 @@ import sqlalchemy
 
 # Define the database connection
 # CHANGED VERSION TO v3 TO FORCE REBUILD
-DATABASE_URL = "sqlite:///./qbe_evolution_v4.db"
+DATABASE_URL = "sqlite:///./qbe_evolution_v5.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
@@ -84,9 +84,10 @@ individual_diagnostics_table = sqlalchemy.Table(
     sqlalchemy.Column("leader_name", sqlalchemy.String),
     sqlalchemy.Column("role_level", sqlalchemy.String),
     
-    # Diagnostic Variables (Input)
-    sqlalchemy.Column("loc_score", sqlalchemy.Integer),        # Loss of Control Score
-    sqlalchemy.Column("ambidextrous_score", sqlalchemy.Integer), # Ambidextrous Leadership Score
+    # Diagnostic Variables (MUST MATCH db_record KEYS)
+    sqlalchemy.Column("loc_score", sqlalchemy.Integer),
+    sqlalchemy.Column("ambidextrous_score", sqlalchemy.Integer),
+    sqlalchemy.Column("com_b_score", sqlalchemy.Integer), # <--- CHECK THIS FIELD
     
     # AI Output
     sqlalchemy.Column("primary_barrier", sqlalchemy.String),  # e.g., Status Threat
