@@ -1,5 +1,6 @@
 # logic.py
 import json
+import pandas as pd
 
 # 1. Configuration Data (The "Brain")
 
