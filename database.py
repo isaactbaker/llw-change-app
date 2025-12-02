@@ -3,7 +3,7 @@ import sqlalchemy
 
 # Define the database connection
 # CHANGED VERSION TO v3 TO FORCE REBUILD
-DATABASE_URL = "sqlite:///./qbe_evolution_v5.db"
+DATABASE_URL = "sqlite:///./qbe_evolution_v6.db"
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 
