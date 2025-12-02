@@ -204,61 +204,26 @@ Your response MUST be formatted in professional Markdown and include the followi
 """
 
 # --- NEW PROMPT FOR STATUS ANCHOR DIALOGUE (Module 4) ---
-# This prompt is designed to generate a short, high-impact coaching intervention.
 PROMPT_STATUS_ANCHOR_DIALOGUE = """
 You are a certified Executive Coach specializing in helping senior leaders transition to AI-augmented roles. Your focus is on psychological safety and leadership identity.
 
 Context:
 - Leader Role/Level: {leader_role}
 - Primary Behavioral Barrier: {primary_barrier}
-- LOC/Anxiety Score (1-10): {loc_score} (Higher score = higher anxiety)
+- LOC/Anxiety Score (1-10): {loc_score}
 - Growth Mindset (1-5): {growth_a}
 
 Your task is to generate a concise, 3-point coaching script for the leader to use when facing *their own* internal anxiety or managing **Status Threat** within their team.
 
 The output MUST contain:
 1.  **Reframing Statement (Identity Shift):** A strong, single sentence designed to shift the leader's identity from 'Expert Knowe' (old value) to 'Orchestrator of Intelligence' (new value).
-2.  **Psychological Safety Script:** A 2-3 sentence internal or external script the leader can use to immediately reduce their own **LOC/Anxiety** or create a safe space for their team (addressing the {loc_score} risk).
+2.  **Psychological Safety Script:** A 2-3 sentence internal or external script the leader can use to immediately reduce their own **LOC/Anxiety** or create a safe space for their team.
 3.  **Actionable Dialogue Prompt (Conversation Design):** A specific question the leader should ask their team to start a productive dialogue about the AI's role and reinforce the **Accountability** principle.
 
 Format the output clearly using Markdown sections. Do not use generic coach-speak.
 """
 
 # 3. API-Calling Functions
-
-# --- NEW FUNCTION FOR STATUS ANCHOR DIALOGUE ---
-def run_status_anchor_dialogue(leader_role: str, primary_barrier: str, loc_score: int, growth_a: int) -> str:
-    """Generates the personalized Status Anchor Dialogue script."""
-    system_prompt = "You are a specialized Executive Coach focused on psychological safety and strategic identity shift."
-    payload = {
-        "leader_role": leader_role,
-        "primary_barrier": primary_barrier,
-        "loc_score": loc_score,
-        "growth_a": growth_a
-    }
-    return call_ai_analysis(PROMPT_STATUS_ANCHOR_DIALOGUE, payload, system_prompt)
-    
-# Update the function signature and body to handle all 13 inputs
-def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int, ethical_a: int, ethical_b: str, safety_a: int, safety_b: int, collab_a: int, collab_b: int, growth_a: int, growth_b: int) -> str:
-    """Generates the individualized 90-Day Leadership Development Protocol."""
-    system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach, specializing in AI governance."
-    payload = {
-        "leader_role": leader_role,
-        "primary_barrier": primary_barrier,
-        "theme": theme,
-        "loc_score": loc_score,
-        "ambidextrous_score": ambidextrous_score,
-        "ethical_a": ethical_a,
-        "ethical_b": ethical_b,
-        "safety_a": safety_a,
-        "safety_b": safety_b,
-        "collab_a": collab_a,
-        "collab_b": collab_b,
-        "growth_a": growth_a,
-        "growth_b": growth_b
-    }
-    return call_ai_analysis(PROMPT_INDIVIDUAL_PROTOCOL, payload, system_prompt)
-    
 def get_api_client():
     """Checks for API key and returns client or None."""
     if not API_IS_CONFIGURED:
@@ -286,9 +251,7 @@ def call_ai_analysis(prompt_template: str, data_payload: dict, system_prompt: st
         return chat_completion.choices[0].message.content
     except Exception as e:
         return f"An error occurred during AI analysis: {e}"
-
-
-# ai_logic.py
+        
 
 def run_friction_analysis(df_friction: pd.DataFrame) -> str:
     """Analyzes friction notes."""
@@ -388,6 +351,11 @@ def run_manager_copilot(tool_choice: str, context: dict) -> str:
 # --- END NEW FUNCTION ---
 
 
+
+
+# ai_logic.py
+
+
 def run_compliance_brief_generator(region: str, department: str, program_focus: str, vendor_name: str) -> str:
     """Generates the 1-page compliance and risk brief."""
     system_prompt = "You are a Group Legal and Risk consultant at QBE, specializing in AI governance."
@@ -398,3 +366,42 @@ def run_compliance_brief_generator(region: str, department: str, program_focus: 
         "vendor_name": vendor_name
     }
     return call_ai_analysis(PROMPT_COMPLIANCE_BRIEF, payload, system_prompt)
+
+
+# Update the function signature and body to handle all 13 inputs
+def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int, ethical_a: int, ethical_b: str, safety_a: int, safety_b: int, collab_a: int, collab_b: int, growth_a: int, growth_b: int) -> str:
+    """Generates the individualized 90-Day Leadership Development Protocol."""
+    system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach, specializing in AI governance."
+    payload = {
+        "leader_role": leader_role,
+        "primary_barrier": primary_barrier,
+        "theme": theme,
+        "loc_score": loc_score,
+        "ambidextrous_score": ambidextrous_score,
+        "ethical_a": ethical_a,
+        "ethical_b": ethical_b,
+        "safety_a": safety_a,
+        "safety_b": safety_b,
+        "collab_a": collab_a,
+        "collab_b": collab_b,
+        "growth_a": growth_a,
+        "growth_b": growth_b
+    }
+    return call_ai_analysis(PROMPT_INDIVIDUAL_PROTOCOL, payload, system_prompt)
+    
+
+# --- NEW FUNCTION FOR STATUS ANCHOR DIALOGUE ---
+def run_status_anchor_dialogue(leader_role: str, primary_barrier: str, loc_score: int, growth_a: int) -> str:
+    """Generates the personalized Status Anchor Dialogue script."""
+    system_prompt = "You are a specialized Executive Coach focused on psychological safety and strategic identity shift."
+    payload = {
+        "leader_role": leader_role,
+        "primary_barrier": primary_barrier,
+        "loc_score": loc_score,
+        "growth_a": growth_a
+    }
+    return call_ai_analysis(PROMPT_STATUS_ANCHOR_DIALOGUE, payload, system_prompt)
+    
+
+
+
