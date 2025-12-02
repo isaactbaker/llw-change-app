@@ -11,8 +11,8 @@ import database
 # Import setup
 from database import engine, capability_assessments_table, vendor_registry_table, individual_diagnostics_table
 from logic import curate_pathway, calculate_behavioural_gap, check_compliance_risk, SWP_WORKSTREAMS, EXECUTION_STATUSES, calculate_execution_score
-from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator
 
+from ai_logic import run_compliance_brief_generator, run_ldp_protocol_generator, run_status_anchor_dialogue
 
 # --- App Configuration ---
 st.set_page_config(
