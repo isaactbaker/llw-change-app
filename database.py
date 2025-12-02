@@ -29,8 +29,6 @@ capability_assessments_table = sqlalchemy.Table(
 
     # NEW FIELD FOR GOVERNANCE ASSURANCE (1.1)
     sqlalchemy.Column("governance_checklist_status", sqlalchemy.String, default="Incomplete"), # Stores the final status
-    
-    # NEW: Vendor Linkage
     sqlalchemy.Column("selected_vendor", sqlalchemy.String),      # <--- CHECK 1
     
     # Output Fields
@@ -106,9 +104,10 @@ individual_diagnostics_table = sqlalchemy.Table(
 
 # --- CRITICAL FIX: AGGRESSIVELY RESET VENDOR TABLE FOR SCHEMA UPDATE ---
 # This ensures the vendor table is dropped if it exists, forcing a clean creation with the new columns.
+# Uncomment this line and run the app once if you get 'no such column' errors
 # vendor_registry_table.drop(engine, checkfirst=True)
+# capability_assessments_table.drop(engine, checkfirst=True) 
+# individual_diagnostics_table.drop(engine, checkfirst=True)
 
-# Ensure individual table is deleted before creation to force the new schema
-individual_diagnostics_table.drop(engine, checkfirst=True)
 # Create the tables
 metadata.create_all(engine)
