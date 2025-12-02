@@ -101,25 +101,21 @@ def ldp_engine_page():
         submitted = st.form_submit_button("Generate 90-Day Protocol")
 
 
-
-        # --- NEW BUTTON FOR STATUS ANCHOR DIALOGUE (Added outside the main form submission for clarity) ---
-        if st.button("Generate Status Anchor Dialogue (AI Coach)"):
+    # --- ACTION BUTTONS (OUTSIDE THE FORM) ---
+    st.markdown("---")
+    
+    # NEW: Status Anchor Dialogue button handler (Moved outside the form)
+    if st.button("Generate Status Anchor Dialogue (AI Coach)"):
+        # We use the leader_name from session state or last form interaction for the AI call context
+        current_leader_name = st.session_state.get('leader_name_input', 'Leader') # Use key if inputs were defined with keys
+        
+        with st.spinner("Generating personalized coaching dialogue..."):
+            # Simulation of Dialogue Generation (You would replace this with a functional call)
+            dialogue_text = f"Status Anchor Dialogue for {current_leader_name}: Your challenge is anchoring identity. **Coaching Prompt:** How does relying on the AI Co-pilot allow you to focus your expertise on managing complex risk instead of data entry?"
             
-            # --- Logic to simulate running the dialogue generator function ---
-            # NOTE: We assume a function run_status_anchor_dialogue() exists in ai_logic.py
-            
-            with st.spinner("Generating personalized coaching dialogue..."):
-                # Simulate generating a specific dialogue using the diagnostic inputs
-                dialogue_text = "Status Anchor Dialogue Placeholder: How to reframe expertise..." 
-                
-                # In a real build, you would call a new AI function here:
-                # dialogue_text = run_status_anchor_dialogue(leader_role, primary_barrier, loc_score, ...)
-
-                st.session_state['dialogue_output'] = dialogue_text
-                st.session_state['dialogue_run_status'] = 'ready'
-                st.rerun()
-
-
+            st.session_state['dialogue_output'] = dialogue_text
+            st.session_state['dialogue_run_status'] = 'ready'
+            st.rerun()
 
     
     if submitted and leader_name:
@@ -173,6 +169,25 @@ def ldp_engine_page():
         
         # Display static Coaching Dialogue prompt concept (Optional visual aid)
         st.caption("Conceptual Model: This protocol forms the core of the personalized AI Coach dialogue prompts (e.g., Conversation Design).")
+
+
+    # --- Display Logic for the new button (Placed after the main form) ---
+    if st.session_state.get('dialogue_run_status') == 'ready':
+        st.markdown("---")
+        st.subheader("🗣️ Status Anchor Dialogue (Just-in-Time Coaching)")
+        st.info(st.session_state['dialogue_output'])
+        # Reset status after displaying
+        st.session_state['dialogue_run_status'] = 'displayed'
+        st.session_state['dialogue_output'] = st.session_state['dialogue_output'] # Keep output for rerun stability
+    
+    # --- Display Generated Brief (Below the main form logic) ---
+    if st.session_state.get('brief_run_status') == 'ready':
+         st.subheader("📄 Ethical Risk Brief Output")
+         st.markdown(st.session_state['brief_output'])
+         
+         # Reset run status after displaying
+         st.session_state['brief_run_status'] = 'displayed'
+         st.session_state['brief_output'] = st.session_state['brief_output'] # Keep output for rerun stability
 
 
 # --- 1. The Capability Needs Assessment (Intake) ---
@@ -369,16 +384,6 @@ def intake_form_page():
             st.info(f"**Gap Analysis:** {target-baseline} point delta. **{gap_tag}**")
             st.progress(baseline/10)
 
-    # --- Display Logic for the new button (Placed after the main form) ---
-    if st.session_state.get('dialogue_run_status') == 'ready':
-        st.markdown("---")
-        st.subheader("🗣️ Status Anchor Dialogue (Just-in-Time Coaching)")
-        st.info(st.session_state['dialogue_output'])
-        # Reset status after displaying
-        st.session_state['dialogue_run_status'] = 'displayed'
-        st.session_state['dialogue_output'] = st.session_state['dialogue_output'] # Keep output for rerun stability
-    
-        
     # --- Display Generated Brief (Below the main form logic) ---
     if st.session_state.get('brief_run_status') == 'ready':
          st.subheader("📄 Ethical Risk Brief Output")
@@ -491,7 +496,13 @@ elif page == "Strategy Dashboard":
     st.session_state['brief_run_status'] = 'initial'
     strategy_dashboard_page()
 elif page == "Individual Coach Architect":
-    # Clear brief state when switching tabs
+    # Initialize session state variables for the new dialogue output
+    if 'dialogue_output' not in st.session_state:
+        st.session_state['dialogue_output'] = None
+    if 'dialogue_run_status' not in st.session_state:
+        st.session_state['dialogue_run_status'] = 'initial'
+        
+    # Clear brief state when switching tabs (Optional, but safe)
     st.session_state['brief_output'] = None
     st.session_state['brief_run_status'] = 'initial'
     ldp_engine_page()
