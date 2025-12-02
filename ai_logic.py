@@ -176,8 +176,37 @@ Your brief MUST be formatted in professional Markdown and include:
 Do not exceed 300 words.
 """
 
-# 3. API-Calling Functions
+# --- NEW PROMPT FOR LDP PROTOCOL ENGINE (Module 1/4) ---
+PROMPT_INDIVIDUAL_PROTOCOL = """
+You are a PhD in Organizational Psychology and a certified Executive Coach, specializing in AI-driven change management.
+Your task is to generate a personalized 90-Day Leadership Development Protocol for a QBE leader facing the AI transition.
 
+Context:
+- Leader Role/Level: {leader_role}
+- Primary Behavioral Barrier (COM-B Diagnosis): {primary_barrier} (e.g., Status Threat / Loss of Control)
+- Capability Gap Theme: {theme} (e.g., Ambidextrous Leadership / Outcome Orchestration)
+- Diagnostic Scores (1-10): LOC Score: {loc_score}, Ambidextrous Score: {ambidextrous_score}
+
+Your response MUST be formatted in professional Markdown and include the following sections to guide their coaching journey:
+
+1.  **AI Synthesis & Coaching Goal:** A 2-sentence summary translating the scores (LOC/Ambidextrous) into their core developmental challenge and a specific, high-level Coaching Goal (e.g., "Shift identity from Expert Knower to Orchestrator of Intelligence").
+2.  **90-Day Protocol (3 Phased Actions):** Generate 3 specific, actionable steps for the leader, categorized into: **Action (Wks 1-4)**, **Application (Wks 5-8)**, and **Sustainment (Wks 9-12)**.
+3.  **Dialogue & Coaching Prompts:** Provide 2 key open-ended reflective questions (Dialogue Prompts) for the leader to practice with their team, focusing on the "{primary_barrier}" issue.
+"""
+
+# 3. API-Calling Functions
+def run_ldp_protocol_generator(leader_role: str, primary_barrier: str, theme: str, loc_score: int, ambidextrous_score: int) -> str:
+    """Generates the individualized 90-Day Leadership Development Protocol."""
+    system_prompt = "You are a PhD in Organizational Psychology and certified Executive Coach."
+    payload = {
+        "leader_role": leader_role,
+        "primary_barrier": primary_barrier,
+        "theme": theme,
+        "loc_score": loc_score,
+        "ambidextrous_score": ambidextrous_score
+    }
+    return call_ai_analysis(PROMPT_INDIVIDUAL_PROTOCOL, payload, system_prompt)
+    
 def get_api_client():
     """Checks for API key and returns client or None."""
     if not API_IS_CONFIGURED:
